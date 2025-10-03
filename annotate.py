@@ -9,7 +9,7 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 
 SUPPORTED = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".webp"}
-CLASSES = ["Helmet", "Vest", "Gloves", "Boots"]
+CLASSES = ["Helmet", "Vest", "Gloves", "Boots"," Mask", "Goggles", "Ear Protection",]
 
 def discover_images(root: Path) -> List[Path]:
     return [p for p in sorted(root.rglob("*")) if p.suffix.lower() in SUPPORTED]
@@ -125,6 +125,8 @@ class App:
         master.bind("2", lambda e: self.toggle_label("Vest"))
         master.bind("3", lambda e: self.toggle_label("Gloves"))
         master.bind("4", lambda e: self.toggle_label("Boots"))
+        master.bind("5", lambda e: self.toggle_label("Mask"))
+        master.bind("6", lambda e: self.toggle_label("Goggles"))
         master.bind("s", lambda e: self.save_current())
         master.bind("S", lambda e: self.save_current())
         master.bind("c", lambda e: self.clear_all_labels())
