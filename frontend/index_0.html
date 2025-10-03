@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Helmet Classification</title>
+  <title>INF 3001 Object Detection</title>
   <link rel="stylesheet" href="styles/styles.css"/>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Helmet Classifier</h1>
-      <p class="subtitle">Upload an image to check if the person is wearing a helmet.</p>
+      <h1>Object Detection</h1>
+      <p class="subtitle">Upload an image and the model will draw boxes + labels.</p>
     </header>
 
     <main>
@@ -27,7 +27,8 @@
           </div>
 
           <div class="image-container" id="imageContainer" style="display:none;">
-            <img id="uploadedImage" alt="Uploaded for classification"/>
+            <img id="uploadedImage" alt="Uploaded for detection"/>
+            <canvas id="detectionCanvas"></canvas>
             <button class="reset-btn" id="resetBtn">
               <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.41L5.83 13H21V7z"/>
@@ -48,19 +49,18 @@
         <div class="status-bar">
           <div class="status-indicator">
             <div class="status-dot" id="statusDot"></div>
-            <span class="status-text" id="statusText">Waiting for image</span>
+            <span class="status-text" id="statusText">Loading model…</span>
           </div>
+          <span class="detection-count" id="detectionCount"></span>
         </div>
-
-        <!-- Highlight top prediction -->
-        <div id="topPrediction" style="margin-bottom:1rem; font-size:1.25rem; font-weight:600;"></div>
-
-        <!-- List of all predictions -->
         <div class="detections-list" id="detectionsList"></div>
       </div>
     </main>
   </div>
 
-  <script src="js/script.js" type="module"></script>
+    <!-- No need for a separate transformers.min.js script -->
+<script src="js/script.js" type="module"></script>
+
+
 </body>
 </html>
