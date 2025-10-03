@@ -9,7 +9,7 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 
 SUPPORTED = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".webp"}
-CLASSES = ["Helmet", "Vest", "Gloves", "Boots"," Mask", "Goggles", "Ear Protection",]
+CLASSES = ["Helmet", "Vest", "Gloves", "Boots", "Mask", "Goggles", "Ear Protection"]
 
 def discover_images(root: Path) -> List[Path]:
     return [p for p in sorted(root.rglob("*")) if p.suffix.lower() in SUPPORTED]
@@ -127,6 +127,7 @@ class App:
         master.bind("4", lambda e: self.toggle_label("Boots"))
         master.bind("5", lambda e: self.toggle_label("Mask"))
         master.bind("6", lambda e: self.toggle_label("Goggles"))
+        master.bind("7", lambda e: self.toggle_label("Ear Protection"))
         master.bind("s", lambda e: self.save_current())
         master.bind("S", lambda e: self.save_current())
         master.bind("c", lambda e: self.clear_all_labels())
@@ -218,11 +219,11 @@ class App:
 
     def toggle_label(self, cls: str):
         labels = set(self.annotations.get(self.key(), []))
-        if cls in labels: labels.remove(cls)
-        else: labels.add(cls)
+        if cls in labels:
+            labels.remove(cls)
+        else:
+            labels.add(cls)
         self.annotations[self.key()] = sorted(labels, key=lambda c: CLASSES.index(c))
-
-        # UI reflect
         self.set_button_state_from_labels(self.annotations[self.key()])
         self.update_preview()
         self.status.set(f"Toggled {cls}")
@@ -303,14 +304,10 @@ class App:
         self.show_image()
 
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: python annotate.py IMAGES_DIR OUTPUT_JSON")
-        sys.exit(1)
-    images_dir = Path(sys.argv[1])
-    json_path = Path(sys.argv[2])
+    images_dir = Path("dataset2/train/images")  # Hardcoded path
+    json_path = Path("dataset2/train/annotations.json")  # Hardcoded JSON output path
 
     root = tk.Tk()
-    # bring to front on start
     root.lift(); root.attributes("-topmost", True); root.after(600, lambda: root.attributes("-topmost", False))
     App(root, images_dir, json_path)
     root.mainloop()
