@@ -18,7 +18,10 @@ The app integrates:
 - **Modern frontend (HTML, CSS, JS)** for an interactive user experience.  
 
 ---
-
+Dataset
+https://github.com/snehilsanyal/Construction-Site-Safety-PPE-Detection
+https://universe.roboflow.com/zayed-uddin-chowdhury-ghymx/safety-helmet-wearing-dataset/browse?queryText=split%3Atest&pageSize=200&startingIndex=0&browseQuery=true
+---
 ## Features
 - Upload or drag-and-drop images for classification  
 - Real-time inference powered by FastAPI & PyTorch  
