@@ -28,6 +28,57 @@ Key deliverables:
 - Evaluated model performance using accuracy, F1-score, and Grad-CAM visualizations
 
 Phase 1 establishes the foundational training pipeline and model explainability tools necessary for subsequent extensions.
+### Findings and Experimental Summary
+
+During Phase 1, several convolutional architectures were reviewed and benchmarked to identify an optimal backbone for binary PPE classification (helmet vs. no-helmet).  
+The models evaluated include **ResNet**, **InceptionResNetV2**, **EfficientNet**, **DenseNet**, and **YOLOv8n-cls**, each exhibiting distinct trade-offs in feature reuse, computational cost, and inference latency:contentReference[oaicite:0]{index=0}.
+
+| Model | Strengths | Weaknesses |
+|:--|:--|:--|
+| **ResNet** | Robust feature extraction, stable gradient flow, widely supported for transfer learning | Longer training time, potential overfitting without regularization |
+| **InceptionResNetV2** | Multi-scale feature learning, high top-1 accuracy | Large parameter count, slower inference |
+| **EfficientNet** | Parameter-efficient scaling, competitive accuracy | Requires careful tuning for complex datasets |
+| **DenseNet** | Strong feature reuse, mitigates vanishing gradients | High memory usage with deeper layers |
+| **YOLOv8n-cls** | High reported accuracy, very fast inference | Less interpretability for pure classification use-cases |
+
+#### Training Configuration
+| Hyperparameter | Value |
+|:--|:--|
+| Batch size | 32 |
+| Epochs | 15 |
+| Learning rate | 1 × 10⁻⁴ |
+| Weight decay | 1 × 10⁻³ |
+| Momentum (SGD) | 0.95 |
+| Dropout | 0.5 |
+| Label smoothing | 0.05 |
+| Validation/Test split | 15 % / 15 % |
+| Automatic Mixed Precision | Enabled (CUDA) |
+| Seed | 42 |
+
+#### Data Augmentation and Pre-processing
+To improve domain robustness and simulate diverse site conditions, the following transformations were applied:
+
+- `RandomResizedCrop(224, scale=(0.7, 1.0), interpolation=BICUBIC)`  
+- `RandomHorizontalFlip(p=0.5)`  
+- `RandomRotation(degrees=12)`  
+- `ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2)`  
+- `RandomErasing(p=0.25, scale=(0.02, 0.15), ratio=(0.3, 3.3))`  
+- Normalization with ImageNet mean / std values  
+
+Validation and test data used deterministic transforms: resize → center-crop → normalize.
+
+#### Evaluation Metrics
+The Phase 1 evaluation primarily relied on **accuracy** and **loss tracking** across training, validation, and test splits.  
+Planned secondary metrics for subsequent experiments include precision, recall, F1-score, ROC-AUC, specificity, and MCC.
+
+#### Observations
+- ResNet-18 with transfer learning and dropout = 0.5 achieved **≈ 92 % test accuracy** with consistent validation stability.  
+- Models trained without dropout exhibited faster convergence but reduced generalization.  
+- Momentum tuning (0.9–0.95) proved critical for stable optimization.  
+- Grad-CAM visualizations confirmed that attention was concentrated around head and helmet regions, validating the model’s spatial reasoning.
+
+These findings form the technical foundation for **Phase 2**, where multi-label classification, bounding-box detection, and comparative UI visualization will be introduced.
+
 
 ---
 
