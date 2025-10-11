@@ -27,57 +27,44 @@ Key deliverables:
 - Trained using **SGD with momentum** and **dropout regularization**
 - Evaluated model performance using accuracy, F1-score, and Grad-CAM visualizations
 
-Phase 1 establishes the foundational training pipeline and model explainability tools necessary for subsequent extensions.
-### Findings and Experimental Summary
+#### Experimental Findings (Phase 1)
 
-During Phase 1, several convolutional architectures were reviewed and benchmarked to identify an optimal backbone for binary PPE classification (helmet vs. no-helmet).  
-The models evaluated include **ResNet**, **InceptionResNetV2**, **EfficientNet**, **DenseNet**, and **YOLOv8n-cls**, each exhibiting distinct trade-offs in feature reuse, computational cost, and inference latency:contentReference[oaicite:0]{index=0}.
+A sequence of eleven controlled experiments was conducted to optimize the ResNet-18 classifier for helmet/no-helmet detection.  
+Each iteration focused on refining generalization performance through systematic adjustment of learning parameters:contentReference[oaicite:0]{index=0}.
 
-| Model | Strengths | Weaknesses |
-|:--|:--|:--|
-| **ResNet** | Robust feature extraction, stable gradient flow, widely supported for transfer learning | Longer training time, potential overfitting without regularization |
-| **InceptionResNetV2** | Multi-scale feature learning, high top-1 accuracy | Large parameter count, slower inference |
-| **EfficientNet** | Parameter-efficient scaling, competitive accuracy | Requires careful tuning for complex datasets |
-| **DenseNet** | Strong feature reuse, mitigates vanishing gradients | High memory usage with deeper layers |
-| **YOLOv8n-cls** | High reported accuracy, very fast inference | Less interpretability for pure classification use-cases |
+| Run | Configuration Highlights | Test Loss | Test Accuracy |
+|:--:|:--|:--:|:--:|
+| 1 – 2 | Baseline (Adam, LR = 1e-4, WD = 1e-3) | ≈ 0.42 – 0.43 | – |
+| 3 | Adam, tuned hyperparameters | 0.4143 | 0.8388 |
+| 5 | Adam + minor adjustments | 0.3752 | 0.8678 |
+| 6 | Switched to **SGD + Momentum = 0.9** | 0.5695 | 0.686 |
+| 7 | Increased momentum → 0.95 | 0.5231 | 0.7521 |
+| 8 – 9 | Added **Dropout (0.5)** | 0.4954 | 0.7727 |
+| 10 | Cleaned dataset + SGD + Dropout (0.5) | **0.3118** | **0.9222** |
+| 11 | Disabled dropout | 0.3842 | 0.8611 |
 
-#### Training Configuration
-| Hyperparameter | Value |
-|:--|:--|
-| Batch size | 32 |
-| Epochs | 15 |
-| Learning rate | 1 × 10⁻⁴ |
-| Weight decay | 1 × 10⁻³ |
-| Momentum (SGD) | 0.95 |
-| Dropout | 0.5 |
-| Label smoothing | 0.05 |
-| Validation/Test split | 15 % / 15 % |
-| Automatic Mixed Precision | Enabled (CUDA) |
-| Seed | 42 |
+**Observations**
 
-#### Data Augmentation and Pre-processing
-To improve domain robustness and simulate diverse site conditions, the following transformations were applied:
+- The transition from **Adam to SGD + momentum (0.9 – 0.95)** stabilized training and mitigated oscillations.  
+- **Dropout (p = 0.5)** proved decisive, improving generalization from 0.7727 to 0.9222 accuracy.  
+- Removing dropout produced a marginal decrease (0.8611 acc), confirming its regularization benefit.  
+- Dataset cleaning and balanced augmentation substantially reduced overfitting.
 
-- `RandomResizedCrop(224, scale=(0.7, 1.0), interpolation=BICUBIC)`  
-- `RandomHorizontalFlip(p=0.5)`  
-- `RandomRotation(degrees=12)`  
-- `ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2)`  
-- `RandomErasing(p=0.25, scale=(0.02, 0.15), ratio=(0.3, 3.3))`  
-- Normalization with ImageNet mean / std values  
+---
 
-Validation and test data used deterministic transforms: resize → center-crop → normalize.
+#### Visual Results
 
-#### Evaluation Metrics
-The Phase 1 evaluation primarily relied on **accuracy** and **loss tracking** across training, validation, and test splits.  
-Planned secondary metrics for subsequent experiments include precision, recall, F1-score, ROC-AUC, specificity, and MCC.
+| Grad-CAM Visualization | Training / Validation Curves |
+|:--:|:--:|
+| <img src="images/gradcam_example.png" width="380"> | <img src="images/training_curve.png" width="380"> |
 
-#### Observations
-- ResNet-18 with transfer learning and dropout = 0.5 achieved **≈ 92 % test accuracy** with consistent validation stability.  
-- Models trained without dropout exhibited faster convergence but reduced generalization.  
-- Momentum tuning (0.9–0.95) proved critical for stable optimization.  
-- Grad-CAM visualizations confirmed that attention was concentrated around head and helmet regions, validating the model’s spatial reasoning.
+*Figure 1. Model attention over helmet region (left) and convergence behaviour across epochs (right).*
 
-These findings form the technical foundation for **Phase 2**, where multi-label classification, bounding-box detection, and comparative UI visualization will be introduced.
+---
+
+These results establish a strong binary-classification baseline with ResNet-18, achieving 92 % test accuracy.  
+They form the empirical foundation for **Phase 2**, which will extend the pipeline to multi-label classification and object detection.
+
 
 
 ---
