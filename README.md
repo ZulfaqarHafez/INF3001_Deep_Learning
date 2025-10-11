@@ -169,6 +169,15 @@ It enables real-time classification from image uploads and visualizes prediction
 - Planned multi-model comparison dashboard (Phase 2)  
 
 ---
+### Web Application Interface
+
+Below is the Phase 1 binary classification interface demonstrating real-time inference through the FastAPI backend.
+
+<p align="center">
+  <img src="images/ui_detection.png" width="700" alt="Helmet Classifier Web App UI">
+</p>
+
+*Figure 3. Binary Helmet Classifier web interface showing predicted class probabilities.*
 
 ## Setup and Installation
 
