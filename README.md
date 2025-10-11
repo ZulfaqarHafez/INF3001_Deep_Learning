@@ -1,7 +1,7 @@
 # INF3001_Project  
 ## Beyond Helmets: Attention-Augmented, Domain-Robust Multi-Label PPE Recognition
 
-[![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://www.python.org/)  [![FastAPI](https://img.shields.io/badge/FastAPI-0.110-green?logo=fastapi)](https://fastapi.tiangolo.com/)  [![PyTorch](https://img.shields.io/badge/PyTorch-2.2-orange?logo=pytorch)](https://pytorch.org/)  [![Frontend](https://img.shields.io/badge/Frontend-HTML%2FCSS%2FJS-yellow?logo=javascript)]()  [![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://www.python.org/)  [![FastAPI](https://img.shields.io/badge/FastAPI-0.110-green?logo=fastapi)](https://fastapi.tiangolo.com/)  [![PyTorch](https://img.shields.io/badge/PyTorch-2.2-orange?logo=pytorch)](https://pytorch.org/)  [![Frontend](https://img.shields.io/badge/Frontend-HTML%2FCSS%2FJS-yellow?logo=javascript)]() 
 
 ---
 
@@ -94,7 +94,7 @@ Phase 2 aims to transition the system from a binary classifier to a multi-class,
 
 ## Objectives
 
-- Develop an AI-based image classification and detection system for PPE compliance monitoring  
+- Develop an multi-label image classification and detection system for PPE compliance monitoring  
 - Leverage transfer learning for efficient convergence and enhanced generalization  
 - Integrate attention mechanisms to improve robustness under occlusion and clutter  
 - Deploy an interactive web interface for real-time analysis and comparison across models  
