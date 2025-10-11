@@ -54,11 +54,17 @@ Each iteration focused on refining generalization performance through systematic
 
 #### Visual Results
 
-| Grad-CAM Visualization | Training / Validation Curves |
+| Training, Validation, and Test Loss | Training, Validation, and Test Accuracy |
 |:--:|:--:|
-| <img src="images/gradcam_example.png" width="380"> | <img src="images/training_curve.png" width="380"> |
+| <img src="images/Train_Test_loss.png" width="380"> | <img src="images/train_val_test.png" width="380"> |
 
-*Figure 1. Model attention over helmet region (left) and convergence behaviour across epochs (right).*
+*Figure 1. Loss (left) and accuracy (right) curves across 15 epochs, demonstrating stable convergence and consistent generalization.*
+
+| Grad-CAM Visualization |
+|:--:|
+| <img src="images/grad-cam.png" width="400"> |
+
+*Figure 2. Grad-CAM overlay highlighting the discriminative helmet region, confirming spatial interpretability of the trained model.*
 
 ---
 
