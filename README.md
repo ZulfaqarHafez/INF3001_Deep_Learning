@@ -183,8 +183,8 @@ Below is the Phase 1 binary classification interface demonstrating real-time inf
 
 ### Clone the Repository
 ```bash
-git clone https://github.com/yourusername/helmet-classifier.git
-cd helmet-classifier
+git clone https://github.com/ZulfaqarHafez/INF3001_Project.git
+cd INF3001_Project
 ```
 ### Backend (FastAPI + PyTorch)
 ```bash
