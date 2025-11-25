@@ -8,7 +8,7 @@ Project: INF3001 Deep Learning - PPE Detection (Live)
 
 import cv2
 import time
-from helmet_compliance_detector import HelmetComplianceDetector
+from backend.helmet_compliance_detector import HelmetComplianceDetector
 
 
 def live_helmet_detection(ppe_model_path: str, camera_id: int = 0):
