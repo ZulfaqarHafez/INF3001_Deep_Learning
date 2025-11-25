@@ -220,12 +220,125 @@ class PPEComplianceSystem {
     }
   }
 
-  displayUploadResults(data) {
+  drawDetectionsOnImage(data) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        
+        // Draw original image
+        ctx.drawImage(img, 0, 0);
+        
+        // Draw detections
+        if (data.person_analyses && data.person_analyses.length > 0) {
+          data.person_analyses.forEach((person, idx) => {
+            const [x1, y1, x2, y2] = person.person_box;
+            const isCompliant = person.overall_compliant;
+            
+            // Draw person bounding box
+            ctx.strokeStyle = isCompliant ? '#10b981' : '#ef4444';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+            
+            // Draw label background
+            const label = isCompliant ? 'COMPLIANT' : 'NON-COMPLIANT';
+            ctx.font = 'bold 20px Inter';
+            const textWidth = ctx.measureText(label).width;
+            
+            ctx.fillStyle = isCompliant ? '#10b981' : '#ef4444';
+            ctx.fillRect(x1, Math.max(0, y1 - 35), textWidth + 20, 35);
+            
+            // Draw label text
+            ctx.fillStyle = 'white';
+            ctx.fillText(label, x1 + 10, Math.max(25, y1 - 10));
+            
+            // Draw person number
+            ctx.font = 'bold 16px Inter';
+            ctx.fillStyle = 'white';
+            ctx.fillText(`Person ${idx + 1}`, x1 + 10, y2 - 10);
+            
+            // Draw head position if available
+            if (person.head_detected && person.head_position) {
+              const [hx, hy] = person.head_position;
+              ctx.fillStyle = '#06b6d4';
+              ctx.beginPath();
+              ctx.arc(hx, hy, 8, 0, 2 * Math.PI);
+              ctx.fill();
+              ctx.strokeStyle = 'white';
+              ctx.lineWidth = 3;
+              ctx.stroke();
+            }
+            
+            // Draw helmet bounding box if available
+            if (person.helmet_bbox) {
+              const [hx1, hy1, hx2, hy2] = person.helmet_bbox;
+              ctx.strokeStyle = '#fbbf24';
+              ctx.lineWidth = 3;
+              ctx.setLineDash([10, 5]);
+              ctx.strokeRect(hx1, hy1, hx2 - hx1, hy2 - hy1);
+              ctx.setLineDash([]);
+              
+              // Helmet label
+              ctx.font = '14px Inter';
+              ctx.fillStyle = '#fbbf24';
+              ctx.fillText('Helmet', hx1, hy1 - 5);
+            }
+          });
+        }
+        
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
+      };
+      img.src = this.previewImage.src;
+    });
+  }
+
+  async displayUploadResults(data) {
     const { total_people, compliant_people, non_compliant_people, compliance_rate, person_analyses } = data;
     
     const isCompliant = compliant_people === total_people && total_people > 0;
     
+    // Generate annotated image
+    const annotatedImageSrc = await this.drawDetectionsOnImage(data);
+    
     this.uploadResults.innerHTML = `
+      <!-- Detection Visualization -->
+      <div class="detection-visualization">
+        <div class="visualization-header">
+          <h4>Detection Results</h4>
+          <button class="btn btn-sm btn-secondary" onclick="this.closest('.detection-visualization').querySelector('img').requestFullscreen()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+            </svg>
+            Fullscreen
+          </button>
+        </div>
+        <div class="visualization-image">
+          <img src="${annotatedImageSrc}" alt="Detection Result" />
+        </div>
+        <div class="visualization-legend">
+          <div class="legend-item">
+            <div class="legend-color" style="background: #10b981;"></div>
+            <span>Compliant (Green)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #ef4444;"></div>
+            <span>Non-Compliant (Red)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #fbbf24;"></div>
+            <span>Helmet Detection (Yellow)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #06b6d4;"></div>
+            <span>Head Position (Cyan)</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Compliance Summary -->
       <div class="compliance-card ${isCompliant ? 'compliant' : 'non-compliant'}">
         <div class="compliance-header">
           <div class="compliance-icon">
@@ -265,14 +378,37 @@ class PPEComplianceSystem {
       
       ${person_analyses && person_analyses.length > 0 ? `
         <div class="person-list">
+          <h4 style="margin-bottom: var(--spacing-md); color: var(--text-primary);">Individual Analysis</h4>
           ${person_analyses.map((person, i) => `
             <div class="person-card ${person.overall_compliant ? 'compliant' : 'non-compliant'}">
               <div class="person-header">
                 <span class="person-id">Person ${i + 1}</span>
                 <span class="person-status">${person.overall_compliant ? 'COMPLIANT' : 'NON-COMPLIANT'}</span>
               </div>
+              <div class="person-details">
+                <div class="person-detail-row">
+                  <span class="detail-key">Status:</span>
+                  <span class="detail-val">${person.status || 'Unknown'}</span>
+                </div>
+                <div class="person-detail-row">
+                  <span class="detail-key">Head Detected:</span>
+                  <span class="detail-val">${person.head_detected ? 'Yes ✓' : 'No ✗'}</span>
+                </div>
+                ${person.has_helmet ? `
+                  <div class="person-detail-row">
+                    <span class="detail-key">Helmet Found:</span>
+                    <span class="detail-val">Yes${person.helmet_confidence ? ` (${(person.helmet_confidence * 100).toFixed(1)}% conf)` : ''}</span>
+                  </div>
+                ` : ''}
+                ${person.distance_to_head !== undefined && person.distance_to_head !== null ? `
+                  <div class="person-detail-row">
+                    <span class="detail-key">Distance to Head:</span>
+                    <span class="detail-val">${person.distance_to_head.toFixed(0)}px</span>
+                  </div>
+                ` : ''}
+              </div>
               <div class="person-reason">
-                ${person.helmet_status?.reason || 'No helmet information'}
+                ${person.reason || 'No additional information'}
               </div>
             </div>
           `).join('')}
@@ -360,14 +496,12 @@ class PPEComplianceSystem {
 
     const startTime = performance.now();
 
-    // Capture frame
     const canvas = document.createElement('canvas');
     canvas.width = this.cameraVideo.videoWidth;
     canvas.height = this.cameraVideo.videoHeight;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(this.cameraVideo, 0, 0);
 
-    // Convert to blob
     canvas.toBlob(async (blob) => {
       if (!this.cameraActive) return;
 
@@ -394,10 +528,8 @@ class PPEComplianceSystem {
         console.error('Detection error:', error);
       }
 
-      // Update FPS
       this.updateFPS();
 
-      // Schedule next frame
       if (this.cameraActive) {
         this.animationFrame = requestAnimationFrame(() => this.processFrame());
       }
@@ -417,12 +549,10 @@ class PPEComplianceSystem {
       const [x1, y1, x2, y2] = person.person_box;
       const isCompliant = person.overall_compliant;
 
-      // Draw box
       ctx.strokeStyle = isCompliant ? '#10b981' : '#ef4444';
       ctx.lineWidth = 3;
       ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
 
-      // Draw label
       const label = isCompliant ? 'COMPLIANT' : 'NON-COMPLIANT';
       ctx.font = 'bold 16px Inter';
       const textWidth = ctx.measureText(label).width;
@@ -433,7 +563,6 @@ class PPEComplianceSystem {
       ctx.fillStyle = 'white';
       ctx.fillText(label, x1 * scaleX + 8, Math.max(20, y1 * scaleY - 8));
 
-      // Draw head position if available
       if (person.head_detected && person.head_position) {
         const [hx, hy] = person.head_position;
         ctx.fillStyle = '#06b6d4';
@@ -452,7 +581,6 @@ class PPEComplianceSystem {
     this.liveCompliant.textContent = data.compliant_people || 0;
     this.liveNonCompliant.textContent = data.non_compliant_people || 0;
 
-    // Update detections list
     if (data.person_analyses && data.person_analyses.length > 0) {
       this.liveDetectionsList.innerHTML = data.person_analyses.map((person, i) => `
         <div class="detection-item ${person.overall_compliant ? 'compliant' : 'non-compliant'}">
@@ -497,7 +625,6 @@ class PPEComplianceSystem {
     this.thresholdDisplay.textContent = `${this.threshold}px`;
   }
 
-  // ===== Stats Management =====
   updateStatsFromResult(data) {
     this.stats.totalAnalyzed += data.total_people || 0;
     this.stats.compliantCount += data.compliant_people || 0;
@@ -516,7 +643,6 @@ class PPEComplianceSystem {
   }
 }
 
-// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   new PPEComplianceSystem();
 });
