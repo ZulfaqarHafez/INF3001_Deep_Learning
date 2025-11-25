@@ -54,7 +54,7 @@ class HelmetComplianceDetector:
         print(f"      ✓ Pose estimation ready!")
         
         # Simple threshold: helmet must be within this distance of head
-        self.HELMET_ON_HEAD_THRESHOLD = 120  # pixels
+        self.HELMET_ON_HEAD_THRESHOLD = 250  # pixels
         
         print("\n" + "="*70)
         print("READY TO DETECT!")
