@@ -4,6 +4,8 @@ Focus: Helmet on head = COMPLIANT, anywhere else = NON-COMPLIANT
 
 Author: Zulfaqar
 Project: INF3001 Deep Learning - PPE Detection (Simplified)
+
+Updated: Now supports loading PPE model directly from Hugging Face
 """
 
 import cv2
@@ -11,6 +13,46 @@ import numpy as np
 import mediapipe as mp
 from ultralytics import YOLO
 from typing import Dict, List, Tuple, Optional
+import os
+
+
+def download_model_from_huggingface(
+    repo_id: str = "iMaximusiV/yolo-ppe-detector",
+    filename: str = "yolov8s.pt",
+    cache_dir: str = None
+) -> str:
+    """
+    Download YOLO model from Hugging Face Hub.
+    
+    Args:
+        repo_id: Hugging Face repository ID (e.g., "iMaximusiV/yolo-ppe-detector")
+        filename: Model filename in the repository (e.g., "yolov8s.pt")
+        cache_dir: Optional directory to cache the model
+        
+    Returns:
+        Local path to the downloaded model file
+    """
+    try:
+        from huggingface_hub import hf_hub_download
+        
+        print(f"\n[HuggingFace] Downloading model from: {repo_id}/{filename}")
+        
+        model_path = hf_hub_download(
+            repo_id=repo_id,
+            filename=filename,
+            cache_dir=cache_dir
+        )
+        
+        print(f"[HuggingFace] ✓ Model downloaded to: {model_path}")
+        return model_path
+        
+    except ImportError:
+        print("[HuggingFace] ✗ huggingface_hub not installed!")
+        print("[HuggingFace] Install it with: pip install huggingface_hub")
+        raise ImportError("Please install huggingface_hub: pip install huggingface_hub")
+    except Exception as e:
+        print(f"[HuggingFace] ✗ Error downloading model: {e}")
+        raise
 
 
 class HelmetComplianceDetector:
@@ -18,15 +60,39 @@ class HelmetComplianceDetector:
     Simple helmet compliance detector.
     COMPLIANT: Helmet on head
     NON-COMPLIANT: Helmet anywhere else (in hand, on ground, nearby)
+    
+    Supports loading PPE model from:
+    - Local file path
+    - Hugging Face Hub (automatic download)
     """
     
-    def __init__(self, ppe_model_path: str, confidence_threshold: float = 0.5):
+    def __init__(
+        self, 
+        ppe_model_path: str = None,
+        huggingface_repo: str = None,
+        huggingface_filename: str = "yolov8s.pt",
+        confidence_threshold: float = 0.5,
+        use_huggingface: bool = False
+    ):
         """
         Initialize the Helmet Compliance Detector.
         
         Args:
-            ppe_model_path: Path to YOUR trained PPE model
+            ppe_model_path: Path to local PPE model file (optional if using HuggingFace)
+            huggingface_repo: Hugging Face repo ID (e.g., "iMaximusiV/yolo-ppe-detector")
+            huggingface_filename: Model filename in the HF repo
             confidence_threshold: Minimum confidence for detections (0-1)
+            use_huggingface: If True, download from HuggingFace instead of using local path
+            
+        Examples:
+            # Using local model
+            detector = HelmetComplianceDetector(ppe_model_path='models/best.pt')
+            
+            # Using Hugging Face model
+            detector = HelmetComplianceDetector(
+                huggingface_repo="iMaximusiV/yolo-ppe-detector",
+                use_huggingface=True
+            )
         """
         print("="*70)
         print("HELMET COMPLIANCE DETECTOR - SIMPLIFIED")
@@ -37,11 +103,29 @@ class HelmetComplianceDetector:
         self.person_model = YOLO('yolov8n.pt')  # Auto-downloads if needed
         print(f"      ✓ Person detection ready!")
         
-        # Load your custom PPE model for helmet detection
-        print(f"\n[2/3] Loading YOUR PPE model from: {ppe_model_path}")
+        # Load PPE model - either from local path or Hugging Face
+        print(f"\n[2/3] Loading PPE model for helmet detection...")
+        
+        if use_huggingface or huggingface_repo:
+            # Download from Hugging Face
+            repo = huggingface_repo or "iMaximusiV/yolo-ppe-detector"
+            ppe_model_path = download_model_from_huggingface(
+                repo_id=repo,
+                filename=huggingface_filename
+            )
+        elif ppe_model_path is None:
+            raise ValueError(
+                "Must provide either 'ppe_model_path' for local model or "
+                "'huggingface_repo' / 'use_huggingface=True' for HuggingFace model"
+            )
+        
+        print(f"      Loading from: {ppe_model_path}")
         self.ppe_model = YOLO(ppe_model_path)
         self.confidence_threshold = confidence_threshold
         print(f"      ✓ PPE model loaded!")
+        
+        # Print model classes
+        print(f"      Model classes: {self.ppe_model.names}")
         
         # Initialize MediaPipe Pose for body keypoints
         print(f"\n[3/3] Initializing MediaPipe Pose...")
@@ -313,47 +397,75 @@ class HelmetComplianceDetector:
 
 
 # Simple test function
-def test_helmet_detector(ppe_model_path: str, image_path: str):
+def test_helmet_detector(ppe_model_path: str = None, image_path: str = None, use_huggingface: bool = False):
     """Quick test"""
-    detector = HelmetComplianceDetector(ppe_model_path, confidence_threshold=0.5)
     
-    frame = cv2.imread(image_path)
-    if frame is None:
-        print(f"Error: Could not load {image_path}")
-        return
+    if use_huggingface:
+        detector = HelmetComplianceDetector(
+            huggingface_repo="iMaximusiV/yolo-ppe-detector",
+            use_huggingface=True,
+            confidence_threshold=0.50
+        )
+    else:
+        detector = HelmetComplianceDetector(
+            ppe_model_path=ppe_model_path,
+            confidence_threshold=0.50
+        )
     
-    output_frame, results = detector.process_frame(frame, visualize=True)
-    
-    print("\n" + "="*70)
-    print("HELMET COMPLIANCE RESULTS")
-    print("="*70)
-    print(f"Total People: {results['total_people']}")
-    print(f"Compliant (helmet on head): {results['compliant']}")
-    print(f"Non-Compliant: {results['non_compliant']}")
-    print(f"Compliance Rate: {results['compliance_rate']*100:.1f}%")
-    
-    print("\nDetailed breakdown:")
-    for i, analysis in enumerate(results['analyses'], 1):
-        status_icon = "✓" if analysis['compliant'] else "✗"
-        print(f"  Person {i}: {status_icon} {analysis['status']} - {analysis['reason']}")
-    
-    print("="*70)
-    
-    # Save
-    cv2.imwrite('helmet_compliance_output.jpg', output_frame)
-    print(f"\n✓ Output saved: helmet_compliance_output.jpg")
-    
-    # Display
-    cv2.imshow('Helmet Compliance Detection', output_frame)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    if image_path:
+        frame = cv2.imread(image_path)
+        if frame is None:
+            print(f"Error: Could not load {image_path}")
+            return
+        
+        output_frame, results = detector.process_frame(frame, visualize=True)
+        
+        print("\n" + "="*70)
+        print("HELMET COMPLIANCE RESULTS")
+        print("="*70)
+        print(f"Total People: {results['total_people']}")
+        print(f"Compliant (helmet on head): {results['compliant']}")
+        print(f"Non-Compliant: {results['non_compliant']}")
+        print(f"Compliance Rate: {results['compliance_rate']*100:.1f}%")
+        
+        print("\nDetailed breakdown:")
+        for i, analysis in enumerate(results['analyses'], 1):
+            status_icon = "✓" if analysis['compliant'] else "✗"
+            print(f"  Person {i}: {status_icon} {analysis['status']} - {analysis['reason']}")
+        
+        print("="*70)
+        
+        # Save
+        cv2.imwrite('helmet_compliance_output.jpg', output_frame)
+        print(f"\n✓ Output saved: helmet_compliance_output.jpg")
+        
+        # Display
+        cv2.imshow('Helmet Compliance Detection', output_frame)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    else:
+        print("Model loaded successfully! Ready for detection.")
+        return detector
 
 
 if __name__ == "__main__":
     import sys
     
-    if len(sys.argv) < 3:
-        print("Usage: python helmet_compliance_detector.py <ppe_model_path> <image_path>")
-        print("Example: python helmet_compliance_detector.py ppe-4080-v12/weights/best.pt test.jpg")
+    print("\nUsage options:")
+    print("  1. Local model:     python helmet_compliance_detector.py <model_path> <image_path>")
+    print("  2. HuggingFace:     python helmet_compliance_detector.py --huggingface <image_path>")
+    print("  3. HuggingFace only: python helmet_compliance_detector.py --huggingface")
+    print()
+    
+    if len(sys.argv) >= 2:
+        if sys.argv[1] == '--huggingface':
+            # Use HuggingFace model
+            image_path = sys.argv[2] if len(sys.argv) > 2 else None
+            test_helmet_detector(use_huggingface=True, image_path=image_path)
+        elif len(sys.argv) >= 3:
+            # Use local model
+            test_helmet_detector(ppe_model_path=sys.argv[1], image_path=sys.argv[2])
+        else:
+            print("Please provide both model path and image path, or use --huggingface flag")
     else:
-        test_helmet_detector(sys.argv[1], sys.argv[2])
+        print("Example: python helmet_compliance_detector.py --huggingface test.jpg")

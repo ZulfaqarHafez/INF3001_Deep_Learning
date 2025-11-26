@@ -38,6 +38,12 @@
           </svg>
           <span>Live Camera</span>
         </button>
+        <button class="nav-item" data-view="history">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span>History</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -49,6 +55,14 @@
           <div class="stat-item">
             <span class="stat-label">Compliance Rate</span>
             <span class="stat-value" id="complianceRate">--%</span>
+          </div>
+        </div>
+        
+        <!-- Connection Status -->
+        <div class="connection-status" id="connectionStatus">
+          <div class="status-indicator">
+            <div class="status-dot loading" id="apiStatusDot"></div>
+            <span id="apiStatusText">Connecting...</span>
           </div>
         </div>
       </div>
@@ -96,6 +110,12 @@
             <input type="file" id="fileInput" accept="image/*" style="display: none;">
 
             <div class="upload-actions">
+              <div class="save-history-toggle">
+                <label class="toggle-label">
+                  <input type="checkbox" id="saveToHistory" checked>
+                  <span class="toggle-text">Save to history</span>
+                </label>
+              </div>
               <button class="btn btn-primary" id="analyzeBtn" disabled>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
@@ -250,6 +270,132 @@
                 <p>No detections</p>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- History View -->
+      <div class="view-container" id="historyView">
+        <div class="view-header">
+          <div class="view-header-main">
+            <h2>Detection History</h2>
+            <p>View and manage past helmet compliance scans</p>
+          </div>
+          <div class="view-header-actions">
+            <button class="btn btn-danger-outline" id="clearAllHistory">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+              Clear All History
+            </button>
+            <button class="btn btn-secondary" id="refreshHistory">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats Summary -->
+        <div class="history-stats-summary" id="historyStatsSummary">
+          <div class="summary-card">
+            <div class="summary-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+            </div>
+            <div class="summary-content">
+              <span class="summary-value" id="statsTotalScans">0</span>
+              <span class="summary-label">Total Scans</span>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-icon success">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <div class="summary-content">
+              <span class="summary-value" id="statsTotalCompliant">0</span>
+              <span class="summary-label">Total Compliant</span>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-icon danger">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+            <div class="summary-content">
+              <span class="summary-value" id="statsTotalViolations">0</span>
+              <span class="summary-label">Total Violations</span>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-icon info">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+              </svg>
+            </div>
+            <div class="summary-content">
+              <span class="summary-value" id="statsOverallRate">--%</span>
+              <span class="summary-label">Overall Compliance</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="history-controls">
+          <div class="filter-group">
+            <button class="btn btn-sm filter-btn active" data-filter="all">All Records</button>
+            <button class="btn btn-sm filter-btn" data-filter="compliant">Fully Compliant</button>
+            <button class="btn btn-sm filter-btn" data-filter="violations">Has Violations</button>
+          </div>
+        </div>
+
+        <!-- History Grid -->
+        <div class="history-grid" id="historyGrid">
+          <div class="empty-state">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" opacity="0.3">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p>No detection history yet</p>
+            <span>Analyze an image to start building history</span>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="historyPagination" style="display: none;">
+          <button class="btn btn-sm" id="prevPage" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            Previous
+          </button>
+          <span class="page-info" id="pageInfo">Page 1</span>
+          <button class="btn btn-sm" id="nextPage">
+            Next
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Detail Modal -->
+      <div class="modal-overlay" id="detailModal" style="display: none;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Detection Details</h3>
+            <button class="btn btn-icon" id="closeModal">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body" id="modalBody">
+            <!-- Content will be populated dynamically -->
           </div>
         </div>
       </div>
