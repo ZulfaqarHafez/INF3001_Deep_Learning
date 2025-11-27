@@ -97,9 +97,6 @@ except Exception as e:
 async def upload_image_to_supabase(image_bytes: bytes, filename: str) -> dict:
     """
     Upload image to Supabase Storage bucket.
-    
-    Returns:
-        dict with 'path' and 'url' keys, or None on failure
     """
     if not supabase:
         return None
@@ -119,7 +116,7 @@ async def upload_image_to_supabase(image_bytes: bytes, filename: str) -> dict:
             content_type = "image/webp"
         
         # Upload to Supabase Storage
-        response = supabase.storage.from_('detection-images').upload(
+        supabase.storage.from_('detection-images').upload(
             path=storage_path,
             file=image_bytes,
             file_options={"content-type": content_type}
@@ -147,9 +144,6 @@ async def save_detection_record(
 ) -> dict:
     """
     Save detection record to Supabase database.
-    
-    Returns:
-        The created record, or None on failure
     """
     if not supabase:
         return None
@@ -188,20 +182,7 @@ async def root():
     return {
         "status": "online",
         "service": "PPE Helmet Compliance API",
-        "version": "2.0.0",
-        "model_source": "huggingface" if USE_HUGGINGFACE else "local",
-        "huggingface_repo": HUGGINGFACE_REPO if USE_HUGGINGFACE else None,
-        "features": {
-            "detection": detector is not None,
-            "history": supabase is not None,
-            "storage": supabase is not None
-        },
-        "endpoints": {
-            "detection": "/detect-helmet",
-            "history": "/history",
-            "stats": "/history/stats/summary",
-            "config": "/config"
-        }
+        "version": "2.0.0"
     }
 
 
@@ -211,9 +192,7 @@ async def health_check():
     return {
         "api": "healthy",
         "detector": "ready" if detector else "unavailable",
-        "supabase": "connected" if supabase else "disconnected",
-        "model_source": "huggingface" if USE_HUGGINGFACE else "local",
-        "timestamp": datetime.now().isoformat()
+        "supabase": "connected" if supabase else "disconnected"
     }
 
 
@@ -229,15 +208,7 @@ async def detect_helmet(
 ):
     """
     Detect helmet compliance in uploaded image.
-    
-    Parameters:
-    - file: Image file (JPG, PNG)
-    - threshold: Optional threshold in pixels (default: uses detector default)
-    - save_to_history: Whether to save this detection to history (default: True)
-    
-    Returns:
-    - Detection results with compliance analysis
-    - If save_to_history=True, includes history_id and image_url
+    Updated to return full PPE audit data.
     """
     if not detector:
         return JSONResponse(
@@ -279,7 +250,8 @@ async def detect_helmet(
             "non_compliant_people": results['non_compliant'],
             "compliance_rate": results['compliance_rate'],
             "threshold_used": detector.HELMET_ON_HEAD_THRESHOLD,
-            "person_analyses": []
+            "person_analyses": [],
+            "raw_ppe_items": results.get('all_ppe_detected', [])  # Raw items for potential debugging
         }
         
         # Add detailed analysis for each person
@@ -289,9 +261,13 @@ async def detect_helmet(
                 "person_box": analysis['person_box'],
                 "head_detected": analysis['head_detected'],
                 "has_helmet": analysis.get('has_helmet', False),
-                "overall_compliant": analysis['compliant'],
-                "status": analysis['status'],
-                "reason": analysis['reason']
+                "overall_compliant": analysis.get('compliant', False),
+                "status": analysis.get('status', 'Unknown'),
+                "reason": analysis.get('reason', ''),
+                
+                # New Fields for Full Audit
+                "detected_gear": analysis.get('detected_gear', []),
+                "ppe_items": analysis.get('ppe_items', [])
             }
             
             # Add optional fields if available

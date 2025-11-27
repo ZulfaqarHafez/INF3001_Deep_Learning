@@ -1,8 +1,7 @@
 /**
  * PPE Helmet Compliance System
  * Frontend JavaScript with Supabase History Integration
- * 
- * Author: Zulfaqar
+ * * Author: Zulfaqar
  * Project: INF3001 Deep Learning - PPE Detection
  */
 
@@ -74,6 +73,7 @@ class PPEComplianceSystem {
     this.cameraPlaceholder = document.getElementById('cameraPlaceholder');
     this.startCameraBtn = document.getElementById('startCamera');
     this.stopCameraBtn = document.getElementById('stopCamera');
+    this.captureFrameBtn = document.getElementById('captureFrame'); // New Button
     this.liveStatusDot = document.getElementById('liveStatusDot');
     this.liveStatusText = document.getElementById('liveStatusText');
     this.liveCompliant = document.getElementById('liveCompliant');
@@ -168,6 +168,7 @@ class PPEComplianceSystem {
     // Camera events
     this.startCameraBtn.addEventListener('click', () => this.startCamera());
     this.stopCameraBtn.addEventListener('click', () => this.stopCamera());
+    this.captureFrameBtn?.addEventListener('click', () => this.captureSnapshot()); // Bind capture
     
     // Threshold controls
     this.increaseThresholdBtn.addEventListener('click', () => this.adjustThreshold(10));
@@ -363,6 +364,10 @@ class PPEComplianceSystem {
     }
   }
 
+  // =========================================================================
+  // UPDATED VISUALIZATION LOGIC (MULTI-CLASS SUPPORT)
+  // =========================================================================
+
   async drawDetectionsOnImage(data) {
     return new Promise((resolve) => {
       const img = new Image();
@@ -372,10 +377,26 @@ class PPEComplianceSystem {
         canvas.height = img.height;
         const ctx = canvas.getContext('2d');
         
-        // Draw original image
+        // 1. Draw original image
         ctx.drawImage(img, 0, 0);
         
-        // Draw detections
+        const fontSize = Math.max(16, img.width / 60);
+        ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+
+        // 2. Define Colors for different Classes
+        const colors = {
+          'hardhat': '#fbbf24', // Yellow
+          'helmet': '#fbbf24',
+          'safety vest': '#f97316', // Orange
+          'vest': '#f97316',
+          'gloves': '#a855f7', // Purple
+          'boots': '#854d0e', // Brown
+          'mask': '#3b82f6', // Blue
+          'person': '#94a3b8',
+          'default': '#06b6d4' // Cyan
+        };
+
+        // 3. Draw Person Analysis
         if (data.person_analyses && data.person_analyses.length > 0) {
           data.person_analyses.forEach((person, idx) => {
             const [x1, y1, x2, y2] = person.person_box;
@@ -386,50 +407,53 @@ class PPEComplianceSystem {
             ctx.lineWidth = Math.max(4, img.width / 300);
             ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
             
-            // Draw label background
+            // Draw COMPLIANCE Status Label
             const label = isCompliant ? 'COMPLIANT' : 'NON-COMPLIANT';
-            const fontSize = Math.max(16, img.width / 60);
-            ctx.font = `bold ${fontSize}px Inter, sans-serif`;
             const textWidth = ctx.measureText(label).width;
             
             ctx.fillStyle = isCompliant ? '#10b981' : '#ef4444';
             ctx.fillRect(x1, Math.max(0, y1 - fontSize - 15), textWidth + 20, fontSize + 10);
             
-            // Draw label text
             ctx.fillStyle = 'white';
             ctx.fillText(label, x1 + 10, Math.max(fontSize + 2, y1 - 8));
             
-            // Draw person number
+            // Draw Person ID
             ctx.font = `bold ${fontSize * 0.8}px Inter, sans-serif`;
-            ctx.fillStyle = 'white';
-            ctx.fillText(`Person ${idx + 1}`, x1 + 10, y2 - 10);
-            
-            // Draw head position if available
+            ctx.fillText(`P${idx + 1}`, x1, y2 + fontSize);
+
+            // 4. Draw ALL associated PPE items for this person
+            if (person.ppe_items && person.ppe_items.length > 0) {
+              person.ppe_items.forEach(item => {
+                const [ix1, iy1, ix2, iy2] = item.bbox;
+                const className = item.class_name.toLowerCase();
+                
+                // Determine color
+                let itemColor = colors['default'];
+                for (const key in colors) {
+                  if (className.includes(key)) itemColor = colors[key];
+                }
+
+                // Draw item box
+                ctx.strokeStyle = itemColor;
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]); // Dashed line for gear
+                ctx.strokeRect(ix1, iy1, ix2 - ix1, iy2 - iy1);
+                ctx.setLineDash([]); // Reset
+
+                // Draw item label
+                ctx.font = `${fontSize * 0.6}px Inter, sans-serif`;
+                ctx.fillStyle = itemColor;
+                ctx.fillText(item.class_name, ix1, iy1 - 5);
+              });
+            }
+
+            // Draw Head Position
             if (person.head_detected && person.head_position) {
               const [hx, hy] = person.head_position;
-              const dotSize = Math.max(6, img.width / 150);
               ctx.fillStyle = '#06b6d4';
               ctx.beginPath();
-              ctx.arc(hx, hy, dotSize, 0, 2 * Math.PI);
+              ctx.arc(hx, hy, Math.max(5, img.width/200), 0, 2 * Math.PI);
               ctx.fill();
-              ctx.strokeStyle = 'white';
-              ctx.lineWidth = 3;
-              ctx.stroke();
-            }
-            
-            // Draw helmet bounding box if available
-            if (person.helmet_bbox) {
-              const [hx1, hy1, hx2, hy2] = person.helmet_bbox;
-              ctx.strokeStyle = '#fbbf24';
-              ctx.lineWidth = 3;
-              ctx.setLineDash([10, 5]);
-              ctx.strokeRect(hx1, hy1, hx2 - hx1, hy2 - hy1);
-              ctx.setLineDash([]);
-              
-              // Helmet label
-              ctx.font = `${fontSize * 0.7}px Inter, sans-serif`;
-              ctx.fillStyle = '#fbbf24';
-              ctx.fillText('Helmet', hx1, hy1 - 5);
             }
           });
         }
@@ -464,22 +488,11 @@ class PPEComplianceSystem {
           <img src="${annotatedImageSrc}" alt="Detection Result" />
         </div>
         <div class="visualization-legend">
-          <div class="legend-item">
-            <div class="legend-color" style="background: #10b981;"></div>
-            <span>Compliant (Green)</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color" style="background: #ef4444;"></div>
-            <span>Non-Compliant (Red)</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color" style="background: #fbbf24;"></div>
-            <span>Helmet Detection (Yellow)</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color" style="background: #06b6d4;"></div>
-            <span>Head Position (Cyan)</span>
-          </div>
+          <div class="legend-item"><div class="legend-color" style="background: #10b981;"></div><span>Compliant</span></div>
+          <div class="legend-item"><div class="legend-color" style="background: #ef4444;"></div><span>Non-Compliant</span></div>
+          <div class="legend-item"><div class="legend-color" style="background: #fbbf24;"></div><span>Helmet</span></div>
+          <div class="legend-item"><div class="legend-color" style="background: #f97316;"></div><span>Vest</span></div>
+          <div class="legend-item"><div class="legend-color" style="background: #a855f7;"></div><span>Gloves</span></div>
         </div>
       </div>
       
@@ -507,29 +520,13 @@ class PPEComplianceSystem {
             <div class="detail-value">${total_people}</div>
           </div>
           <div class="detail-item">
-            <div class="detail-label">Compliant</div>
-            <div class="detail-value" style="color: var(--success);">${compliant_people}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Non-Compliant</div>
-            <div class="detail-value" style="color: var(--danger);">${non_compliant_people}</div>
-          </div>
-          <div class="detail-item">
             <div class="detail-label">Compliance Rate</div>
             <div class="detail-value">${(compliance_rate * 100).toFixed(1)}%</div>
           </div>
         </div>
       </div>
-      
-      ${data.saved_to_history ? `
-        <div class="history-saved-notice">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-          </svg>
-          Saved to history
-        </div>
-      ` : ''}
-      
+
+      <!-- Person List with New Gear Badges -->
       ${person_analyses && person_analyses.length > 0 ? `
         <div class="person-list">
           <h4 style="margin-bottom: var(--spacing-md); color: var(--text-primary);">Individual Analysis</h4>
@@ -544,25 +541,24 @@ class PPEComplianceSystem {
                   <span class="detail-key">Status:</span>
                   <span class="detail-val">${person.status || 'Unknown'}</span>
                 </div>
-                <div class="person-detail-row">
-                  <span class="detail-key">Head Detected:</span>
-                  <span class="detail-val">${person.head_detected ? 'Yes ✓' : 'No ✗'}</span>
+                
+                <!-- NEW SECTION: Detected Gear List -->
+                <div class="person-detail-row" style="flex-direction: column; align-items: flex-start; gap: 5px;">
+                  <span class="detail-key">Detected Gear:</span>
+                  <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                    ${person.detected_gear && person.detected_gear.length > 0 
+                      ? person.detected_gear.map(gear => 
+                          `<span style="background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; border: 1px solid #e2e8f0;">${gear}</span>`
+                        ).join('') 
+                      : '<span style="color: #94a3b8; font-style: italic; font-size: 0.85rem;">None detected</span>'
+                    }
+                  </div>
                 </div>
-                ${person.has_helmet ? `
-                  <div class="person-detail-row">
-                    <span class="detail-key">Helmet Found:</span>
-                    <span class="detail-val">Yes${person.helmet_confidence ? ` (${(person.helmet_confidence * 100).toFixed(1)}% conf)` : ''}</span>
-                  </div>
-                ` : ''}
-                ${person.distance_to_head !== undefined && person.distance_to_head !== null ? `
-                  <div class="person-detail-row">
-                    <span class="detail-key">Distance to Head:</span>
-                    <span class="detail-val">${person.distance_to_head.toFixed(0)}px</span>
-                  </div>
-                ` : ''}
-              </div>
-              <div class="person-reason">
-                ${person.reason || 'No additional information'}
+
+                <div class="person-detail-row">
+                  <span class="detail-key">Reason:</span>
+                  <span class="detail-val">${person.reason || 'N/A'}</span>
+                </div>
               </div>
             </div>
           `).join('')}
@@ -612,6 +608,7 @@ class PPEComplianceSystem {
         this.cameraActive = true;
         this.startCameraBtn.disabled = true;
         this.stopCameraBtn.disabled = false;
+        if(this.captureFrameBtn) this.captureFrameBtn.disabled = false; // Enable capture
         
         this.setLiveStatus('Camera active', 'active');
         this.processFrame();
@@ -643,9 +640,66 @@ class PPEComplianceSystem {
     
     this.startCameraBtn.disabled = false;
     this.stopCameraBtn.disabled = true;
+    if(this.captureFrameBtn) this.captureFrameBtn.disabled = true; // Disable capture
     
     this.setLiveStatus('Inactive', 'inactive');
     this.resetLiveStats();
+  }
+
+  async captureSnapshot() {
+    if (!this.cameraActive) return;
+    
+    // Disable button to prevent double clicks
+    if(this.captureFrameBtn) {
+        this.captureFrameBtn.disabled = true;
+        this.captureFrameBtn.innerHTML = `Saving...`;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = this.cameraVideo.videoWidth;
+    canvas.height = this.cameraVideo.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(this.cameraVideo, 0, 0);
+
+    canvas.toBlob(async (blob) => {
+      try {
+        const formData = new FormData();
+        formData.append('file', blob, 'snapshot.jpg');
+        formData.append('threshold', this.threshold.toString());
+        formData.append('save_to_history', 'true'); // FORCE SAVE
+
+        const response = await fetch(`${this.API_BASE}/detect-helmet`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.saved_to_history) {
+            this.showNotification('Snapshot saved to history!', 'success');
+          } else {
+            this.showNotification('Snapshot captured but save failed.', 'error');
+          }
+        } else {
+             throw new Error("API Error");
+        }
+      } catch (error) {
+        console.error('Snapshot error:', error);
+        this.showNotification('Failed to save snapshot.', 'error');
+      } finally {
+        // Re-enable button
+        if(this.captureFrameBtn) {
+            this.captureFrameBtn.disabled = false;
+            this.captureFrameBtn.innerHTML = `
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              Capture
+            `;
+        }
+      }
+    }, 'image/jpeg', 0.9);
   }
 
   async processFrame() {
@@ -703,14 +757,24 @@ class PPEComplianceSystem {
     const scaleX = this.cameraCanvas.width / this.cameraVideo.videoWidth;
     const scaleY = this.cameraCanvas.height / this.cameraVideo.videoHeight;
 
+    // Define Colors map for live view as well
+    const colors = {
+      'hardhat': '#fbbf24', 'helmet': '#fbbf24',
+      'safety vest': '#f97316', 'vest': '#f97316',
+      'gloves': '#a855f7', 'boots': '#854d0e',
+      'mask': '#3b82f6', 'default': '#06b6d4'
+    };
+
     data.person_analyses.forEach((person) => {
       const [x1, y1, x2, y2] = person.person_box;
       const isCompliant = person.overall_compliant;
 
+      // Draw Person Box
       ctx.strokeStyle = isCompliant ? '#10b981' : '#ef4444';
       ctx.lineWidth = 3;
       ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
 
+      // Draw Label
       const label = isCompliant ? 'COMPLIANT' : 'NON-COMPLIANT';
       ctx.font = 'bold 16px Inter, sans-serif';
       const textWidth = ctx.measureText(label).width;
@@ -721,6 +785,7 @@ class PPEComplianceSystem {
       ctx.fillStyle = 'white';
       ctx.fillText(label, x1 * scaleX + 8, Math.max(20, y1 * scaleY - 8));
 
+      // Draw Head
       if (person.head_detected && person.head_position) {
         const [hx, hy] = person.head_position;
         ctx.fillStyle = '#06b6d4';
@@ -730,6 +795,22 @@ class PPEComplianceSystem {
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 2;
         ctx.stroke();
+      }
+
+      // Draw Associated Gear
+      if (person.ppe_items && person.ppe_items.length > 0) {
+         person.ppe_items.forEach(item => {
+            const [ix1, iy1, ix2, iy2] = item.bbox;
+            const className = item.class_name.toLowerCase();
+            let color = colors['default'];
+            for (const k in colors) { if(className.includes(k)) color = colors[k]; }
+            
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            ctx.strokeRect(ix1 * scaleX, iy1 * scaleY, (ix2 - ix1) * scaleX, (iy2 - iy1) * scaleY);
+            ctx.setLineDash([]);
+         });
       }
     });
   }
@@ -744,8 +825,9 @@ class PPEComplianceSystem {
         <div class="detection-item ${person.overall_compliant ? 'compliant' : 'non-compliant'}">
           <div class="detection-info">
             <span class="detection-label">Person ${i + 1}</span>
+            <span class="detection-sub">${person.detected_gear ? person.detected_gear.join(', ') : ''}</span>
           </div>
-          <span class="detection-confidence">${person.overall_compliant ? '✓ Compliant' : '✗ Non-compliant'}</span>
+          <span class="detection-confidence">${person.overall_compliant ? '✓' : '✗'}</span>
         </div>
       `).join('');
     } else {
@@ -790,18 +872,11 @@ class PPEComplianceSystem {
   async loadHistory() {
     try {
       let url = `${this.API_BASE}/history?limit=${this.historyLimit}&offset=${this.historyOffset}`;
-      
-      if (this.currentFilter === 'compliant') {
-        url += '&compliant_only=true';
-      } else if (this.currentFilter === 'violations') {
-        url += '&compliant_only=false';
-      }
+      if (this.currentFilter === 'compliant') url += '&compliant_only=true';
+      else if (this.currentFilter === 'violations') url += '&compliant_only=false';
       
       const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error('Failed to load history');
-      }
+      if (!response.ok) throw new Error('Failed to load history');
       
       const data = await response.json();
       this.historyRecords = data.records;
@@ -812,11 +887,7 @@ class PPEComplianceSystem {
       console.error('Failed to load history:', error);
       this.historyGrid.innerHTML = `
         <div class="empty-state">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" opacity="0.3">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
           <p>Failed to load history</p>
-          <span>Check your connection and try again</span>
         </div>
       `;
     }
@@ -825,9 +896,7 @@ class PPEComplianceSystem {
   async loadHistoryStats() {
     try {
       const response = await fetch(`${this.API_BASE}/history/stats/summary`);
-      
       if (!response.ok) return;
-      
       const stats = await response.json();
       
       if (this.statsTotalScans) this.statsTotalScans.textContent = stats.total_scans || 0;
@@ -837,21 +906,14 @@ class PPEComplianceSystem {
         const rate = stats.overall_compliance_rate ? (stats.overall_compliance_rate * 100).toFixed(1) : 0;
         this.statsOverallRate.textContent = `${rate}%`;
       }
-      
-    } catch (error) {
-      console.error('Failed to load history stats:', error);
-    }
+    } catch (error) { console.error(error); }
   }
 
   renderHistory(records) {
     if (!records || records.length === 0) {
       this.historyGrid.innerHTML = `
         <div class="empty-state">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" opacity="0.3">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
           <p>No detection history found</p>
-          <span>Analyze an image to start building history</span>
         </div>
       `;
       this.historyPagination.style.display = 'none';
@@ -867,37 +929,19 @@ class PPEComplianceSystem {
       return `
         <div class="history-card ${isFullyCompliant ? 'compliant' : 'non-compliant'}" data-id="${record.id}">
           <div class="history-image">
-            <img src="${record.image_url}" alt="Detection ${record.id}" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect fill=%22%23334155%22 width=%22100%22 height=%22100%22/><text fill=%22%2394a3b8%22 x=%2250%22 y=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2212%22>No Image</text></svg>'"/>
+            <img src="${record.image_url}" loading="lazy" />
             <div class="history-badge ${isFullyCompliant ? 'success' : 'danger'}">
-              ${isFullyCompliant ? '✓ Compliant' : '⚠ Violation'}
+              ${isFullyCompliant ? '✓ Pass' : '⚠ Fail'}
             </div>
           </div>
           <div class="history-content">
             <div class="history-date">
               ${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
             </div>
-            <div class="history-stats">
-              <span class="stat-mini">
-                <strong>${record.total_people}</strong> people
-              </span>
-              <span class="stat-mini success">
-                <strong>${record.compliant_people}</strong> compliant
-              </span>
-              <span class="stat-mini danger">
-                <strong>${record.non_compliant_people}</strong> violations
-              </span>
+            <div class="history-actions">
+              <button class="btn btn-sm btn-secondary" onclick="ppeSystem.viewHistoryDetail('${record.id}')">Details</button>
+              <button class="btn btn-sm btn-danger" onclick="ppeSystem.deleteHistoryRecord('${record.id}')">Delete</button>
             </div>
-            <div class="history-rate">
-              Compliance: ${((record.compliance_rate || 0) * 100).toFixed(1)}%
-            </div>
-          </div>
-          <div class="history-actions">
-            <button class="btn btn-sm btn-secondary" onclick="ppeSystem.viewHistoryDetail('${record.id}')">
-              View Details
-            </button>
-            <button class="btn btn-sm btn-danger" onclick="ppeSystem.deleteHistoryRecord('${record.id}')">
-              Delete
-            </button>
           </div>
         </div>
       `;
@@ -907,11 +951,7 @@ class PPEComplianceSystem {
   setFilter(filter) {
     this.currentFilter = filter;
     this.historyOffset = 0;
-    
-    this.filterBtns.forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.filter === filter);
-    });
-    
+    this.filterBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.filter === filter));
     this.loadHistory();
   }
 
@@ -931,190 +971,62 @@ class PPEComplianceSystem {
   async viewHistoryDetail(recordId) {
     try {
       const response = await fetch(`${this.API_BASE}/history/${recordId}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch record');
-      }
-      
+      if (!response.ok) throw new Error('Failed');
       const record = await response.json();
       this.showDetailModal(record);
-      
-    } catch (error) {
-      console.error('Failed to fetch record:', error);
-      this.showNotification('Failed to load record details', 'error');
-    }
+    } catch (error) { console.error(error); }
   }
   
   showDetailModal(record) {
     const date = new Date(record.created_at);
     const isCompliant = record.non_compliant_people === 0;
     
+    // We can also visualize new gear info in modal if recorded
+    
     this.modalBody.innerHTML = `
       <div class="modal-image">
         <img src="${record.image_url}" alt="Detection" />
       </div>
-      
       <div class="modal-info">
-        <div class="modal-timestamp">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-          ${date.toLocaleString()}
-        </div>
+        <h3>${isCompliant ? 'COMPLIANT' : 'NON-COMPLIANT'}</h3>
+        <p>${date.toLocaleString()}</p>
         
-        <div class="modal-compliance ${isCompliant ? 'compliant' : 'non-compliant'}">
-          <div class="modal-compliance-icon">
-            ${isCompliant 
-              ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>'
-              : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>'}
-          </div>
-          <div>
-            <div class="modal-compliance-title">${isCompliant ? 'FULLY COMPLIANT' : 'VIOLATIONS DETECTED'}</div>
-            <div class="modal-compliance-subtitle">
-              ${record.compliant_people} of ${record.total_people} workers compliant
-            </div>
-          </div>
-        </div>
-        
-        <div class="modal-stats-grid">
-          <div class="modal-stat">
-            <span class="modal-stat-value">${record.total_people}</span>
-            <span class="modal-stat-label">Total People</span>
-          </div>
-          <div class="modal-stat success">
-            <span class="modal-stat-value">${record.compliant_people}</span>
-            <span class="modal-stat-label">Compliant</span>
-          </div>
-          <div class="modal-stat danger">
-            <span class="modal-stat-value">${record.non_compliant_people}</span>
-            <span class="modal-stat-label">Violations</span>
-          </div>
-          <div class="modal-stat">
-            <span class="modal-stat-value">${((record.compliance_rate || 0) * 100).toFixed(1)}%</span>
-            <span class="modal-stat-label">Compliance Rate</span>
-          </div>
-        </div>
-        
-        ${record.person_analyses && record.person_analyses.length > 0 ? `
-          <div class="modal-analyses">
-            <h4>Individual Analysis</h4>
-            ${record.person_analyses.map((person, i) => `
-              <div class="modal-person ${person.overall_compliant ? 'compliant' : 'non-compliant'}">
-                <div class="modal-person-header">
-                  <span>Person ${i + 1}</span>
-                  <span class="modal-person-status">${person.overall_compliant ? '✓ Compliant' : '✗ Non-compliant'}</span>
-                </div>
-                <div class="modal-person-reason">${person.reason || 'No details'}</div>
+        <div class="modal-analyses">
+            ${record.person_analyses ? record.person_analyses.map((p, i) => `
+              <div class="modal-person ${p.overall_compliant ? 'compliant' : 'non-compliant'}">
+                <span>Person ${i+1}: ${p.overall_compliant ? 'Pass' : 'Fail'}</span>
+                <br>
+                <small>Gear: ${p.detected_gear ? p.detected_gear.join(', ') : 'None'}</small>
               </div>
-            `).join('')}
-          </div>
-        ` : ''}
-        
-        <div class="modal-meta">
-          <span>Threshold: ${record.threshold_used || 'N/A'}px</span>
-          ${record.original_filename ? `<span>File: ${record.original_filename}</span>` : ''}
+            `).join('') : ''}
         </div>
       </div>
     `;
-    
     this.detailModal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
   }
   
   closeModal() {
     this.detailModal.style.display = 'none';
-    document.body.style.overflow = '';
   }
 
   async deleteHistoryRecord(recordId) {
-    if (!confirm('Delete this detection record? This cannot be undone.')) return;
-    
+    if (!confirm('Delete this record?')) return;
     try {
-      const response = await fetch(`${this.API_BASE}/history/${recordId}`, {
-        method: 'DELETE'
-      });
-      
-      if (response.ok) {
-        this.showNotification('Record deleted successfully', 'success');
-        this.loadHistory();
-        this.loadHistoryStats();
-      } else {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to delete record');
-      }
-    } catch (error) {
-      console.error('Delete failed:', error);
-      this.showNotification(error.message || 'Failed to delete record', 'error');
-    }
-  }
-  async clearAllHistory() {
-  const confirmed = confirm(
-    'DELETE ALL HISTORY?\n\n' +
-    'This will permanently delete:\n' +
-    '• All detection records\n' +
-    '• All uploaded images\n' +
-    '• All statistics data\n\n' +
-    'This action CANNOT be undone!\n\n' +
-    'Are you absolutely sure?'
-  );
-  
-  if (!confirmed) return;
-  
-  const doubleConfirm = confirm(
-    'FINAL WARNING!\n\n' +
-    'You are about to delete ALL history permanently.\n\n' +
-    'Click OK to proceed with deletion.'
-  );
-  
-  if (!doubleConfirm) return;
-  
-  try {
-    this.clearAllHistoryBtn.disabled = true;
-    this.clearAllHistoryBtn.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="spin">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-      </svg>
-      Deleting...
-    `;
-    
-    const response = await fetch(`${this.API_BASE}/history?confirm=true`, {
-      method: 'DELETE'
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      this.showNotification(
-        `Successfully deleted ${data.deleted_records} records and ${data.deleted_images} images`,
-        'success'
-      );
+      await fetch(`${this.API_BASE}/history/${recordId}`, { method: 'DELETE' });
       this.loadHistory();
       this.loadHistoryStats();
-      this.historyOffset = 0;
-    } else {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to clear history');
-    }
-  } catch (error) {
-    console.error('Clear all history failed:', error);
-    this.showNotification(
-      error.message || 'Failed to clear history. Please try again.',
-      'error'
-    );
-  } finally {
-    this.clearAllHistoryBtn.disabled = false;
-    this.clearAllHistoryBtn.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-      </svg>
-      Clear All History
-    `;
-    }
+    } catch (error) { console.error(error); }
   }
 
-  // =========================================================================
-  // STATISTICS
-  // =========================================================================
-  
+  async clearAllHistory() {
+    if(!confirm('Delete ALL history?')) return;
+    try {
+        await fetch(`${this.API_BASE}/history?confirm=true`, { method: 'DELETE' });
+        this.loadHistory();
+        this.loadHistoryStats();
+    } catch(e) { console.error(e); }
+  }
+
   updateStatsFromResult(data) {
     this.stats.totalAnalyzed += data.total_people || 0;
     this.stats.compliantCount += data.compliant_people || 0;
@@ -1122,10 +1034,7 @@ class PPEComplianceSystem {
   }
 
   updateStats() {
-    if (this.totalAnalyzedEl) {
-      this.totalAnalyzedEl.textContent = this.stats.totalAnalyzed;
-    }
-    
+    if (this.totalAnalyzedEl) this.totalAnalyzedEl.textContent = this.stats.totalAnalyzed;
     if (this.complianceRateEl) {
       if (this.stats.totalAnalyzed > 0) {
         const rate = (this.stats.compliantCount / this.stats.totalAnalyzed * 100).toFixed(1);
@@ -1135,48 +1044,19 @@ class PPEComplianceSystem {
       }
     }
   }
-
-  // =========================================================================
-  // NOTIFICATIONS
-  // =========================================================================
   
   showNotification(message, type = 'info') {
-    // Remove existing notification
-    const existing = document.querySelector('.notification');
-    if (existing) existing.remove();
-    
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-      <span>${message}</span>
-      <button class="notification-close">&times;</button>
-    `;
-    
+    notification.innerHTML = `<span>${message}</span>`;
     document.body.appendChild(notification);
-    
-    // Trigger animation
     setTimeout(() => notification.classList.add('show'), 10);
-    
-    // Auto-dismiss
-    const timeout = setTimeout(() => {
-      notification.classList.remove('show');
-      setTimeout(() => notification.remove(), 300);
-    }, 4000);
-    
-    // Manual dismiss
-    notification.querySelector('.notification-close').addEventListener('click', () => {
-      clearTimeout(timeout);
-      notification.classList.remove('show');
-      setTimeout(() => notification.remove(), 300);
-    });
+    setTimeout(() => notification.remove(), 4000);
   }
 }
 
-// Initialize the system
 let ppeSystem;
 document.addEventListener('DOMContentLoaded', () => {
   ppeSystem = new PPEComplianceSystem();
 });
-
-// Export for global access (for inline onclick handlers)
 window.ppeSystem = ppeSystem;

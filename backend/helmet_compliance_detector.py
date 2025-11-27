@@ -1,11 +1,10 @@
 """
 Simplified Helmet Compliance Detection
 Focus: Helmet on head = COMPLIANT, anywhere else = NON-COMPLIANT
+Update: Detects ALL PPE items for visualization, but enforces Helmet for compliance.
 
 Author: Zulfaqar
 Project: INF3001 Deep Learning - PPE Detection (Simplified)
-
-Updated: Now supports loading PPE model directly from Hugging Face
 """
 
 import cv2
@@ -57,9 +56,9 @@ def download_model_from_huggingface(
 
 class HelmetComplianceDetector:
     """
-    Simple helmet compliance detector.
-    COMPLIANT: Helmet on head
-    NON-COMPLIANT: Helmet anywhere else (in hand, on ground, nearby)
+    Helmet compliance detector with full PPE auditing.
+    COMPLIANT: Helmet on head (Strict)
+    AUDIT: Lists all other gear found (Vest, Gloves, etc.)
     
     Supports loading PPE model from:
     - Local file path
@@ -76,26 +75,9 @@ class HelmetComplianceDetector:
     ):
         """
         Initialize the Helmet Compliance Detector.
-        
-        Args:
-            ppe_model_path: Path to local PPE model file (optional if using HuggingFace)
-            huggingface_repo: Hugging Face repo ID (e.g., "iMaximusiV/yolo-ppe-detector")
-            huggingface_filename: Model filename in the HF repo
-            confidence_threshold: Minimum confidence for detections (0-1)
-            use_huggingface: If True, download from HuggingFace instead of using local path
-            
-        Examples:
-            # Using local model
-            detector = HelmetComplianceDetector(ppe_model_path='models/best.pt')
-            
-            # Using Hugging Face model
-            detector = HelmetComplianceDetector(
-                huggingface_repo="iMaximusiV/yolo-ppe-detector",
-                use_huggingface=True
-            )
         """
         print("="*70)
-        print("HELMET COMPLIANCE DETECTOR - SIMPLIFIED")
+        print("HELMET COMPLIANCE DETECTOR - MULTI-CLASS AUDIT")
         print("="*70)
         
         # Load pretrained YOLOv8n for person detection
@@ -138,7 +120,7 @@ class HelmetComplianceDetector:
         print(f"      ✓ Pose estimation ready!")
         
         # Simple threshold: helmet must be within this distance of head
-        self.HELMET_ON_HEAD_THRESHOLD = 250  # pixels
+        self.HELMET_ON_HEAD_THRESHOLD = 400  # pixels
         
         print("\n" + "="*70)
         print("READY TO DETECT!")
@@ -171,26 +153,28 @@ class HelmetComplianceDetector:
         
         return people
     
-    def detect_helmets(self, frame: np.ndarray) -> List[Dict]:
-        """Detect helmets using your custom model."""
+    def detect_all_ppe(self, frame: np.ndarray) -> List[Dict]:
+        """Detect ALL PPE items (Helmets, Vests, Gloves, etc)."""
         results = self.ppe_model(frame, conf=self.confidence_threshold, verbose=False)[0]
         
-        helmets = []
+        ppe_items = []
         for box in results.boxes:
             cls = int(box.cls[0])
-            class_name = self.ppe_model.names[cls].lower()
+            class_name = self.ppe_model.names[cls]
             
-            # Only get helmets/hardhats (not "no-helmet")
-            if 'hardhat' in class_name or 'helmet' in class_name:
-                if 'no' not in class_name:  # Skip "no-hardhat"
-                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                    helmets.append({
-                        'bbox': [int(x1), int(y1), int(x2), int(y2)],
-                        'confidence': float(box.conf[0]),
-                        'class_name': self.ppe_model.names[cls]
-                    })
+            # Skip 'person' if the PPE model detects it (we use YOLOv8n for people)
+            if class_name.lower() == 'person':
+                continue
+                
+            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+            ppe_items.append({
+                'bbox': [int(x1), int(y1), int(x2), int(y2)],
+                'confidence': float(box.conf[0]),
+                'class_name': class_name,  # e.g., 'Hardhat', 'Safety Vest', 'Gloves'
+                'label': class_name
+            })
         
-        return helmets
+        return ppe_items
     
     def get_head_position(self, frame: np.ndarray, person_box: List[int]) -> Optional[Tuple[int, int]]:
         """
@@ -231,73 +215,86 @@ class HelmetComplianceDetector:
         
         return (head_x, head_y)
     
-    def check_helmet_on_person(self, person: Dict, helmets: List[Dict], head_pos: Tuple[int, int]) -> Dict:
+    def analyze_person_ppe(self, person: Dict, all_ppe_items: List[Dict], head_pos: Tuple[int, int]) -> Dict:
         """
-        Check if a helmet is on this person's head.
+        Associate PPE with the person. 
+        - Helmet triggers COMPLIANCE check.
+        - Other items are just listed as 'detected_gear'.
         
         Returns:
-            Dictionary with compliance status
+            Dictionary with compliance status and list of all gear found.
         """
-        person_center = self.get_box_center(person['bbox'])
+        px1, py1, px2, py2 = person['bbox']
         
-        # Find closest helmet to this person
-        closest_helmet = None
-        min_dist_to_person = float('inf')
+        # Initialize result structure
+        result = {
+            'has_helmet': False,
+            'compliant': False,  # Default to False until proven otherwise
+            'status': 'NO_HELMET',
+            'reason': 'No helmet detected',
+            'distance_to_head': None,
+            'detected_gear': [],  # List of strings e.g. ["Vest", "Gloves"]
+            'ppe_items': []       # List of full object dicts for visualization
+        }
+
+        # 1. Associate items with this person
+        # Item center must be roughly inside the person's bounding box (with margin)
+        margin = 50
         
-        for helmet in helmets:
-            helmet_center = self.get_box_center(helmet['bbox'])
-            dist = self.euclidean_distance(person_center, helmet_center)
-            if dist < min_dist_to_person:
-                min_dist_to_person = dist
-                closest_helmet = helmet
-        
-        # No helmet found near this person
-        if closest_helmet is None or min_dist_to_person > 400:
-            return {
-                'has_helmet': False,
-                'compliant': False,
-                'status': 'NO_HELMET',
-                'reason': 'No helmet detected',
-                'distance_to_head': None
-            }
-        
-        # Check if helmet is on head
-        helmet_center = self.get_box_center(closest_helmet['bbox'])
-        dist_to_head = self.euclidean_distance(helmet_center, head_pos)
-        
-        if dist_to_head < self.HELMET_ON_HEAD_THRESHOLD:
-            return {
-                'has_helmet': True,
-                'compliant': True,
-                'status': 'WEARING',
-                'reason': f'Helmet on head ({dist_to_head:.0f}px from head)',
-                'distance_to_head': dist_to_head,
-                'helmet': closest_helmet
-            }
-        else:
-            return {
-                'has_helmet': True,
-                'compliant': False,
-                'status': 'NOT_WEARING',
-                'reason': f'Helmet detected but not on head ({dist_to_head:.0f}px away)',
-                'distance_to_head': dist_to_head,
-                'helmet': closest_helmet
-            }
+        for item in all_ppe_items:
+            item_center = self.get_box_center(item['bbox'])
+            ix, iy = item_center
+            
+            # Check if item is near person
+            is_near = (px1 - margin < ix < px2 + margin) and \
+                      (py1 - margin < iy < py2 + margin)
+            
+            if is_near:
+                # Add to lists
+                if item['class_name'] not in result['detected_gear']:
+                    result['detected_gear'].append(item['class_name'])
+                result['ppe_items'].append(item)
+
+                # 2. Specific Logic for Helmet Compliance
+                # Check if this item is a helmet
+                class_lower = item['class_name'].lower()
+                is_helmet = ('hardhat' in class_lower or 'helmet' in class_lower) and 'no' not in class_lower
+
+                if is_helmet:
+                    dist_to_head = self.euclidean_distance(item_center, head_pos)
+                    
+                    # If on head -> COMPLIANT
+                    if dist_to_head < self.HELMET_ON_HEAD_THRESHOLD:
+                        result['has_helmet'] = True
+                        result['compliant'] = True
+                        result['status'] = 'WEARING'
+                        result['reason'] = f"Helmet on head ({dist_to_head:.0f}px)"
+                        result['distance_to_head'] = dist_to_head
+                        result['helmet'] = item # Store best helmet
+                    
+                    # If not on head, but found -> store it if we haven't found a better one yet
+                    elif not result['has_helmet']: 
+                        result['status'] = 'NOT_WEARING'
+                        result['reason'] = f"Helmet detected off-head ({dist_to_head:.0f}px)"
+                        result['distance_to_head'] = dist_to_head
+                        result['helmet'] = item
+
+        return result
     
     def process_frame(self, frame: np.ndarray, visualize: bool = True) -> Tuple[np.ndarray, Dict]:
         """
-        Process frame for helmet compliance.
+        Process frame for helmet compliance + full PPE audit.
         
         Returns:
             (annotated_frame, results_dict)
         """
         output_frame = frame.copy()
         
-        # Detect people and helmets
+        # Detect everything
         people = self.detect_people(frame)
-        helmets = self.detect_helmets(frame)
+        all_ppe = self.detect_all_ppe(frame)
         
-        print(f"\n[Detection] Found {len(people)} people, {len(helmets)} helmets")
+        print(f"\n[Detection] Found {len(people)} people, {len(all_ppe)} PPE items")
         
         # Analyze each person
         analyses = []
@@ -310,56 +307,57 @@ class HelmetComplianceDetector:
                 analyses.append({
                     'person_box': person['bbox'],
                     'head_detected': False,
-                    'has_helmet': False,
                     'compliant': False,
                     'status': 'NO_POSE',
-                    'reason': 'Could not detect head position'
+                    'reason': 'Could not detect head position',
+                    'detected_gear': [],
+                    'ppe_items': []
                 })
                 continue
             
-            # Check helmet compliance
-            result = self.check_helmet_on_person(person, helmets, head_pos)
+            # Analyze gear and compliance
+            result = self.analyze_person_ppe(person, all_ppe, head_pos)
             result['person_box'] = person['bbox']
             result['head_detected'] = True
             result['head_position'] = head_pos
             
             analyses.append(result)
         
-        # Visualize
+        # Visualize locally (optional, mainly for debugging as API handles frontend viz)
         if visualize:
-            output_frame = self.visualize(output_frame, analyses, helmets)
+            output_frame = self.visualize(output_frame, analyses, all_ppe)
         
         # Compile results
         results = {
             'people': people,
-            'helmets': helmets,
+            'all_ppe_detected': all_ppe, # Send all raw items
             'analyses': analyses,
             'total_people': len(people),
-            'compliant': sum(1 for a in analyses if a['compliant']),
-            'non_compliant': sum(1 for a in analyses if not a['compliant']),
-            'compliance_rate': (sum(1 for a in analyses if a['compliant']) / len(analyses) 
+            'compliant': sum(1 for a in analyses if a.get('compliant', False)),
+            'non_compliant': sum(1 for a in analyses if not a.get('compliant', False)),
+            'compliance_rate': (sum(1 for a in analyses if a.get('compliant', False)) / len(analyses) 
                               if analyses else 0.0)
         }
         
         return output_frame, results
     
-    def visualize(self, frame: np.ndarray, analyses: List[Dict], helmets: List[Dict]) -> np.ndarray:
-        """Draw visualizations on frame."""
+    def visualize(self, frame: np.ndarray, analyses: List[Dict], all_ppe: List[Dict]) -> np.ndarray:
+        """Draw visualizations on frame for local debugging/output."""
         output = frame.copy()
         
-        # Draw all detected helmets (yellow boxes)
-        for helmet in helmets:
-            x1, y1, x2, y2 = helmet['bbox']
-            cv2.rectangle(output, (x1, y1), (x2, y2), (0, 255, 255), 2)
-            cv2.putText(output, f"Helmet {helmet['confidence']:.2f}", 
-                       (x1, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+        # Draw all PPE items first (thin lines)
+        for item in all_ppe:
+            x1, y1, x2, y2 = item['bbox']
+            cv2.rectangle(output, (x1, y1), (x2, y2), (255, 200, 0), 1)
+            cv2.putText(output, item['class_name'], (x1, y1-5), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 200, 0), 1)
         
-        # Draw people with compliance status
+        # Draw people and compliance status
         for analysis in analyses:
             x1, y1, x2, y2 = analysis['person_box']
             
             # Color based on compliance
-            if analysis['compliant']:
+            if analysis.get('compliant', False):
                 color = (0, 255, 0)  # Green
                 label = 'COMPLIANT'
             else:
@@ -374,24 +372,14 @@ class HelmetComplianceDetector:
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
             
             # Draw head position (cyan dot)
-            if analysis['head_detected']:
+            if analysis.get('head_detected'):
                 head_pos = analysis['head_position']
                 cv2.circle(output, head_pos, 8, (255, 255, 0), -1)
-                cv2.circle(output, head_pos, 10, (255, 255, 255), 2)
             
             # Draw reason text
             y_offset = y2 + 25
-            cv2.putText(output, analysis['reason'], (x1, y_offset), 
+            cv2.putText(output, analysis.get('reason', ''), (x1, y_offset), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-        
-        # Draw summary
-        total = len(analyses)
-        compliant = sum(1 for a in analyses if a['compliant'])
-        
-        summary = f"People: {total} | Compliant: {compliant} | Non-compliant: {total - compliant}"
-        cv2.rectangle(output, (10, 10), (600, 45), (0, 0, 0), -1)
-        cv2.putText(output, summary, (15, 35), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         
         return output
 
@@ -421,31 +409,26 @@ def test_helmet_detector(ppe_model_path: str = None, image_path: str = None, use
         output_frame, results = detector.process_frame(frame, visualize=True)
         
         print("\n" + "="*70)
-        print("HELMET COMPLIANCE RESULTS")
+        print("HELMET COMPLIANCE RESULTS (AUDIT MODE)")
         print("="*70)
         print(f"Total People: {results['total_people']}")
-        print(f"Compliant (helmet on head): {results['compliant']}")
+        print(f"Compliant: {results['compliant']}")
         print(f"Non-Compliant: {results['non_compliant']}")
-        print(f"Compliance Rate: {results['compliance_rate']*100:.1f}%")
         
         print("\nDetailed breakdown:")
         for i, analysis in enumerate(results['analyses'], 1):
-            status_icon = "✓" if analysis['compliant'] else "✗"
-            print(f"  Person {i}: {status_icon} {analysis['status']} - {analysis['reason']}")
+            status_icon = "✓" if analysis.get('compliant', False) else "✗"
+            gear_str = ", ".join(analysis.get('detected_gear', []))
+            print(f"  Person {i}: {status_icon} {analysis.get('status')} - {analysis.get('reason')}")
+            print(f"            Gear found: {gear_str if gear_str else 'None'}")
         
         print("="*70)
         
         # Save
-        cv2.imwrite('helmet_compliance_output.jpg', output_frame)
-        print(f"\n✓ Output saved: helmet_compliance_output.jpg")
-        
-        # Display
-        cv2.imshow('Helmet Compliance Detection', output_frame)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        cv2.imwrite('helmet_compliance_audit.jpg', output_frame)
+        print(f"\n✓ Output saved: helmet_compliance_audit.jpg")
     else:
         print("Model loaded successfully! Ready for detection.")
-        return detector
 
 
 if __name__ == "__main__":
@@ -454,18 +437,14 @@ if __name__ == "__main__":
     print("\nUsage options:")
     print("  1. Local model:     python helmet_compliance_detector.py <model_path> <image_path>")
     print("  2. HuggingFace:     python helmet_compliance_detector.py --huggingface <image_path>")
-    print("  3. HuggingFace only: python helmet_compliance_detector.py --huggingface")
-    print()
     
     if len(sys.argv) >= 2:
         if sys.argv[1] == '--huggingface':
-            # Use HuggingFace model
             image_path = sys.argv[2] if len(sys.argv) > 2 else None
             test_helmet_detector(use_huggingface=True, image_path=image_path)
         elif len(sys.argv) >= 3:
-            # Use local model
             test_helmet_detector(ppe_model_path=sys.argv[1], image_path=sys.argv[2])
         else:
-            print("Please provide both model path and image path, or use --huggingface flag")
+            print("Please provide arguments.")
     else:
         print("Example: python helmet_compliance_detector.py --huggingface test.jpg")
