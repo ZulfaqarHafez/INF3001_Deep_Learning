@@ -208,7 +208,7 @@ async def detect_helmet(
 ):
     """
     Detect helmet compliance in uploaded image.
-    Updated to return full PPE audit data.
+    Updated to return full PPE audit data AND landmarks.
     """
     if not detector:
         return JSONResponse(
@@ -240,7 +240,7 @@ async def detect_helmet(
                 )
             detector.HELMET_ON_HEAD_THRESHOLD = int(threshold)
         
-        # Process frame
+        # Process frame (visualize=False because we draw on frontend)
         _, results = detector.process_frame(frame, visualize=False)
         
         # Build response
@@ -276,10 +276,14 @@ async def detect_helmet(
             
             if 'distance_to_head' in analysis and analysis['distance_to_head'] is not None:
                 person_data['distance_to_head'] = round(analysis['distance_to_head'], 2)
-            
+                
             if 'helmet' in analysis:
                 person_data['helmet_bbox'] = analysis['helmet']['bbox']
                 person_data['helmet_confidence'] = round(analysis['helmet']['confidence'], 3)
+            
+            # --- CRITICAL UPDATE: PASS LANDMARKS ---
+            if 'landmarks' in analysis:
+                person_data['landmarks'] = analysis['landmarks']
             
             response['person_analyses'].append(person_data)
         

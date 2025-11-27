@@ -1,7 +1,7 @@
 /**
  * PPE Helmet Compliance System
  * Frontend JavaScript with Supabase History Integration
- * * Author: Zulfaqar
+ * Author: Zulfaqar
  * Project: INF3001 Deep Learning - PPE Detection
  */
 
@@ -36,6 +36,8 @@ class PPEComplianceSystem {
     this.bindEvents();
     this.checkAPIConnection();
     this.updateStats();
+    
+    console.log("PPE System Initialized");
   }
 
   // =========================================================================
@@ -73,7 +75,7 @@ class PPEComplianceSystem {
     this.cameraPlaceholder = document.getElementById('cameraPlaceholder');
     this.startCameraBtn = document.getElementById('startCamera');
     this.stopCameraBtn = document.getElementById('stopCamera');
-    this.captureFrameBtn = document.getElementById('captureFrame'); // New Button
+    this.captureFrameBtn = document.getElementById('captureFrame');
     this.liveStatusDot = document.getElementById('liveStatusDot');
     this.liveStatusText = document.getElementById('liveStatusText');
     this.liveCompliant = document.getElementById('liveCompliant');
@@ -168,7 +170,7 @@ class PPEComplianceSystem {
     // Camera events
     this.startCameraBtn.addEventListener('click', () => this.startCamera());
     this.stopCameraBtn.addEventListener('click', () => this.stopCamera());
-    this.captureFrameBtn?.addEventListener('click', () => this.captureSnapshot()); // Bind capture
+    this.captureFrameBtn?.addEventListener('click', () => this.captureSnapshot());
     
     // Threshold controls
     this.increaseThresholdBtn.addEventListener('click', () => this.adjustThreshold(10));
@@ -211,12 +213,10 @@ class PPEComplianceSystem {
       if (response.ok) {
         const data = await response.json();
         this.setAPIStatus('connected', `API Connected`);
-        console.log('API Health:', data);
       } else {
         this.setAPIStatus('error', 'API Error');
       }
     } catch (error) {
-      console.error('API Connection Error:', error);
       this.setAPIStatus('error', 'API Offline');
     }
   }
@@ -235,16 +235,13 @@ class PPEComplianceSystem {
   // =========================================================================
   
   switchView(view) {
-    // Update navigation
     this.navItems.forEach(item => item.classList.remove('active'));
     document.querySelector(`[data-view="${view}"]`)?.classList.add('active');
     
-    // Hide all views
     this.uploadView.classList.remove('active');
     this.liveView.classList.remove('active');
     this.historyView.classList.remove('active');
     
-    // Show selected view
     if (view === 'upload') {
       this.uploadView.classList.add('active');
       if (this.cameraActive) this.stopCamera();
@@ -365,112 +362,178 @@ class PPEComplianceSystem {
   }
 
   // =========================================================================
-  // UPDATED VISUALIZATION LOGIC (MULTI-CLASS SUPPORT)
+  // UPDATED VISUALIZATION LOGIC (Shared for Upload and History)
   // =========================================================================
 
-  async drawDetectionsOnImage(data) {
+  /**
+   * Helper to draw skeleton lines
+   */
+  drawSkeleton(ctx, landmarks, scaleX = 1, scaleY = 1) {
+    if (!landmarks) return;
+    
+    // Points map
+    const pts = {
+      N: landmarks.nose,
+      LS: landmarks.shoulders[0], RS: landmarks.shoulders[1],
+      LE: landmarks.elbows[0],    RE: landmarks.elbows[1],
+      LW: landmarks.wrists[0],    RW: landmarks.wrists[1],
+      LH: landmarks.hips[0],      RH: landmarks.hips[1],
+      TC: landmarks.torso_center
+    };
+    
+    // Connections to draw
+    const connections = [
+      ['LS', 'RS'], ['LS', 'LE'], ['LE', 'LW'], // Left Arm
+      ['RS', 'RE'], ['RE', 'RW'],               // Right Arm
+      ['LS', 'LH'], ['RS', 'RH'],               // Torso Sides
+      ['LH', 'RH'], ['LS', 'TC'], ['RS', 'TC'], // Hips & Neck
+      ['N', 'TC']                               // Nose to Torso
+    ];
+    
+    // Draw Bones (Yellow)
+    ctx.strokeStyle = 'cyan';
+    ctx.lineWidth = 2;
+    
+    connections.forEach(([p1, p2]) => {
+      if (pts[p1] && pts[p2]) {
+        ctx.beginPath();
+        ctx.moveTo(pts[p1][0] * scaleX, pts[p1][1] * scaleY);
+        ctx.lineTo(pts[p2][0] * scaleX, pts[p2][1] * scaleY);
+        ctx.stroke();
+      }
+    });
+    
+    // Draw Joints (Red)
+    ctx.fillStyle = 'red';
+    Object.values(pts).forEach(pt => {
+      if (pt) {
+        ctx.beginPath();
+        ctx.arc(pt[0] * scaleX, pt[1] * scaleY, 4, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    });
+  }
+
+  /**
+   * Generates an annotated image with bounding boxes and labels
+   * Works for both local blob URLs (Upload) and external URLs (History/Supabase)
+   */
+  async generateAnnotatedImage(imageSource, personAnalyses) {
     return new Promise((resolve) => {
       const img = new Image();
+      // 'anonymous' is crucial for drawing external images (Supabase) onto canvas
+      // without tainting it, assuming Supabase bucket has CORS configured.
+      img.crossOrigin = "anonymous"; 
+      
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        
-        // 1. Draw original image
-        ctx.drawImage(img, 0, 0);
-        
-        const fontSize = Math.max(16, img.width / 60);
-        ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          
+          // 1. Draw original image
+          ctx.drawImage(img, 0, 0);
+          
+          const fontSize = Math.max(16, img.width / 60);
+          ctx.font = `bold ${fontSize}px Inter, sans-serif`;
 
-        // 2. Define Colors for different Classes
-        const colors = {
-          'hardhat': '#fbbf24', // Yellow
-          'helmet': '#fbbf24',
-          'safety vest': '#f97316', // Orange
-          'vest': '#f97316',
-          'gloves': '#a855f7', // Purple
-          'boots': '#854d0e', // Brown
-          'mask': '#3b82f6', // Blue
-          'person': '#94a3b8',
-          'default': '#06b6d4' // Cyan
-        };
+          // 2. Define Colors for different Classes
+          const colors = {
+            'hardhat': '#fbbf24', // Yellow
+            'helmet': '#fbbf24',
+            'safety vest': '#f97316', // Orange
+            'vest': '#f97316',
+            'gloves': '#a855f7', // Purple
+            'boots': '#854d0e', // Brown
+            'mask': '#3b82f6', // Blue
+            'person': '#94a3b8',
+            'default': '#06b6d4' // Cyan
+          };
 
-        // 3. Draw Person Analysis
-        if (data.person_analyses && data.person_analyses.length > 0) {
-          data.person_analyses.forEach((person, idx) => {
-            const [x1, y1, x2, y2] = person.person_box;
-            const isCompliant = person.overall_compliant;
-            
-            // Draw person bounding box
-            ctx.strokeStyle = isCompliant ? '#10b981' : '#ef4444';
-            ctx.lineWidth = Math.max(4, img.width / 300);
-            ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-            
-            // Draw COMPLIANCE Status Label
-            const label = isCompliant ? 'COMPLIANT' : 'NON-COMPLIANT';
-            const textWidth = ctx.measureText(label).width;
-            
-            ctx.fillStyle = isCompliant ? '#10b981' : '#ef4444';
-            ctx.fillRect(x1, Math.max(0, y1 - fontSize - 15), textWidth + 20, fontSize + 10);
-            
-            ctx.fillStyle = 'white';
-            ctx.fillText(label, x1 + 10, Math.max(fontSize + 2, y1 - 8));
-            
-            // Draw Person ID
-            ctx.font = `bold ${fontSize * 0.8}px Inter, sans-serif`;
-            ctx.fillText(`P${idx + 1}`, x1, y2 + fontSize);
+          // 3. Draw Person Analysis
+          if (personAnalyses && personAnalyses.length > 0) {
+            personAnalyses.forEach((person, idx) => {
+              
+              // --- NEW: Draw Skeleton ---
+              if (person.landmarks) {
+                this.drawSkeleton(ctx, person.landmarks);
+              }
 
-            // 4. Draw ALL associated PPE items for this person
-            if (person.ppe_items && person.ppe_items.length > 0) {
-              person.ppe_items.forEach(item => {
-                const [ix1, iy1, ix2, iy2] = item.bbox;
-                const className = item.class_name.toLowerCase();
-                
-                // Determine color
-                let itemColor = colors['default'];
-                for (const key in colors) {
-                  if (className.includes(key)) itemColor = colors[key];
-                }
+              const [x1, y1, x2, y2] = person.person_box;
+              const isCompliant = person.overall_compliant;
+              
+              // Draw person bounding box
+              ctx.strokeStyle = isCompliant ? '#10b981' : '#ef4444';
+              ctx.lineWidth = Math.max(4, img.width / 300);
+              ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+              
+              // Draw COMPLIANCE Status Label
+              const label = isCompliant ? 'COMPLIANT' : 'NON-COMPLIANT';
+              const textWidth = ctx.measureText(label).width;
+              
+              ctx.fillStyle = isCompliant ? '#10b981' : '#ef4444';
+              ctx.fillRect(x1, Math.max(0, y1 - fontSize - 15), textWidth + 20, fontSize + 10);
+              
+              ctx.fillStyle = 'white';
+              ctx.fillText(label, x1 + 10, Math.max(fontSize + 2, y1 - 8));
+              
+              // Draw Person ID
+              ctx.font = `bold ${fontSize * 0.8}px Inter, sans-serif`;
+              ctx.fillText(`P${idx + 1}`, x1, y2 + fontSize);
 
-                // Draw item box
-                ctx.strokeStyle = itemColor;
-                ctx.lineWidth = 2;
-                ctx.setLineDash([5, 5]); // Dashed line for gear
-                ctx.strokeRect(ix1, iy1, ix2 - ix1, iy2 - iy1);
-                ctx.setLineDash([]); // Reset
+              // 4. Draw ALL associated PPE items for this person
+              if (person.ppe_items && person.ppe_items.length > 0) {
+                person.ppe_items.forEach(item => {
+                  const [ix1, iy1, ix2, iy2] = item.bbox;
+                  const className = item.class_name.toLowerCase();
+                  
+                  // Determine color
+                  let itemColor = colors['default'];
+                  for (const key in colors) {
+                    if (className.includes(key)) itemColor = colors[key];
+                  }
 
-                // Draw item label
-                ctx.font = `${fontSize * 0.6}px Inter, sans-serif`;
-                ctx.fillStyle = itemColor;
-                ctx.fillText(item.class_name, ix1, iy1 - 5);
-              });
-            }
+                  // Draw item box
+                  ctx.strokeStyle = itemColor;
+                  ctx.lineWidth = 2;
+                  ctx.setLineDash([]); // Solid line
+                  ctx.strokeRect(ix1, iy1, ix2 - ix1, iy2 - iy1);
 
-            // Draw Head Position
-            if (person.head_detected && person.head_position) {
-              const [hx, hy] = person.head_position;
-              ctx.fillStyle = '#06b6d4';
-              ctx.beginPath();
-              ctx.arc(hx, hy, Math.max(5, img.width/200), 0, 2 * Math.PI);
-              ctx.fill();
-            }
-          });
+                  // Draw item label WITH CONFIDENCE
+                  const confPercent = Math.round(item.confidence * 100);
+                  const itemLabel = `${item.class_name} ${confPercent}%`;
+
+                  ctx.font = `${fontSize * 0.6}px Inter, sans-serif`;
+                  ctx.fillStyle = itemColor;
+                  ctx.fillText(itemLabel, ix1, iy1 - 5);
+                });
+              }
+            });
+          }
+          
+          resolve(canvas.toDataURL('image/jpeg', 0.9));
+        } catch(e) {
+          console.warn("Could not draw on canvas (likely CORS issue). Returning original image.", e);
+          resolve(imageSource); // Fallback to raw image if canvas fails
         }
-        
-        resolve(canvas.toDataURL('image/jpeg', 0.9));
       };
-      img.src = this.previewImage.src;
+      
+      img.onerror = () => {
+        console.error("Failed to load image for annotation");
+        resolve(imageSource);
+      };
+      
+      img.src = imageSource;
     });
   }
 
   async displayUploadResults(data) {
     const { total_people, compliant_people, non_compliant_people, compliance_rate, person_analyses } = data;
-    
     const isCompliant = compliant_people === total_people && total_people > 0;
     
-    // Generate annotated image
-    const annotatedImageSrc = await this.drawDetectionsOnImage(data);
+    // Reuse the new generalized function
+    const annotatedImageSrc = await this.generateAnnotatedImage(this.previewImage.src, person_analyses);
     
     this.uploadResults.innerHTML = `
       <!-- Detection Visualization -->
@@ -766,6 +829,11 @@ class PPEComplianceSystem {
     };
 
     data.person_analyses.forEach((person) => {
+      // --- NEW: Draw Skeleton in Live View ---
+      if (person.landmarks) {
+        this.drawSkeleton(ctx, person.landmarks, scaleX, scaleY);
+      }
+
       const [x1, y1, x2, y2] = person.person_box;
       const isCompliant = person.overall_compliant;
 
@@ -797,7 +865,7 @@ class PPEComplianceSystem {
         ctx.stroke();
       }
 
-      // Draw Associated Gear
+      // Draw Associated Gear with Confidence
       if (person.ppe_items && person.ppe_items.length > 0) {
          person.ppe_items.forEach(item => {
             const [ix1, iy1, ix2, iy2] = item.bbox;
@@ -807,9 +875,14 @@ class PPEComplianceSystem {
             
             ctx.strokeStyle = color;
             ctx.lineWidth = 2;
-            ctx.setLineDash([4, 4]);
+            ctx.setLineDash([]); // Solid line
             ctx.strokeRect(ix1 * scaleX, iy1 * scaleY, (ix2 - ix1) * scaleX, (iy2 - iy1) * scaleY);
-            ctx.setLineDash([]);
+            
+            // --- ADDED CONFIDENCE ---
+            const confPercent = Math.round(item.confidence * 100);
+            ctx.fillStyle = color;
+            ctx.font = '12px Inter, sans-serif';
+            ctx.fillText(`${item.class_name} ${confPercent}%`, ix1 * scaleX, (iy1 * scaleY) - 5);
          });
       }
     });
@@ -939,8 +1012,8 @@ class PPEComplianceSystem {
               ${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
             </div>
             <div class="history-actions">
-              <button class="btn btn-sm btn-secondary" onclick="ppeSystem.viewHistoryDetail('${record.id}')">Details</button>
-              <button class="btn btn-sm btn-danger" onclick="ppeSystem.deleteHistoryRecord('${record.id}')">Delete</button>
+              <button class="btn btn-sm btn-secondary" onclick="window.ppeSystem.viewHistoryDetail('${record.id}')">Details</button>
+              <button class="btn btn-sm btn-danger" onclick="window.ppeSystem.deleteHistoryRecord('${record.id}')">Delete</button>
             </div>
           </div>
         </div>
@@ -977,28 +1050,74 @@ class PPEComplianceSystem {
     } catch (error) { console.error(error); }
   }
   
-  showDetailModal(record) {
+  async showDetailModal(record) {
     const date = new Date(record.created_at);
     const isCompliant = record.non_compliant_people === 0;
     
-    // We can also visualize new gear info in modal if recorded
+    // Safety check: Ensure person_analyses is an object/array, not a string
+    let analyses = record.person_analyses;
+    if (typeof analyses === 'string') {
+        try {
+            analyses = JSON.parse(analyses);
+        } catch (e) {
+            console.error("Failed to parse person_analyses JSON:", e);
+            analyses = []; // Fallback to empty array
+        }
+    }
     
+    // Generate annotated image dynamically
+    // Note: We use the raw URL from Supabase and overlay data from 'person_analyses'
+    const annotatedImage = await this.generateAnnotatedImage(record.image_url, analyses);
+    
+    // Render Modal Content
     this.modalBody.innerHTML = `
       <div class="modal-image">
-        <img src="${record.image_url}" alt="Detection" />
+        <img src="${annotatedImage}" alt="Detection" />
       </div>
       <div class="modal-info">
         <h3>${isCompliant ? 'COMPLIANT' : 'NON-COMPLIANT'}</h3>
-        <p>${date.toLocaleString()}</p>
+        <p class="modal-timestamp">${date.toLocaleString()}</p>
+        
+        <!-- NEW: Threshold Display -->
+        <div style="background: var(--bg-dark); padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border);">
+            <strong style="color: var(--text-primary);">Config Used:</strong>
+            <span style="color: var(--text-secondary); margin-left: 5px;">
+                Threshold: ${record.threshold_used || 'N/A'}px
+            </span>
+        </div>
         
         <div class="modal-analyses">
-            ${record.person_analyses ? record.person_analyses.map((p, i) => `
+            ${analyses && analyses.length > 0 ? analyses.map((p, i) => `
               <div class="modal-person ${p.overall_compliant ? 'compliant' : 'non-compliant'}">
-                <span>Person ${i+1}: ${p.overall_compliant ? 'Pass' : 'Fail'}</span>
-                <br>
-                <small>Gear: ${p.detected_gear ? p.detected_gear.join(', ') : 'None'}</small>
+                <div class="modal-person-header">
+                  <span>Person ${i+1}: ${p.overall_compliant ? 'Pass' : 'Fail'}</span>
+                </div>
+                
+                <div class="modal-person-reason">
+                   Reason: ${p.reason || 'N/A'}
+                </div>
+                
+                <!-- Updated Gear Visualization -->
+                <div style="margin-top: 10px;">
+                  <strong style="font-size: 0.75rem; color: #94a3b8; display: block; margin-bottom: 5px;">DETECTED GEAR:</strong>
+                  
+                  ${p.ppe_items && p.ppe_items.length > 0 
+                    ? `<div class="gear-list">
+                        ${p.ppe_items.map(item => {
+                           const confidence = Math.round(item.confidence * 100);
+                           return `
+                             <div class="gear-badge">
+                               ${item.class_name} 
+                               <span class="confidence">${confidence}%</span>
+                             </div>
+                           `;
+                        }).join('')}
+                       </div>`
+                    : '<span style="color: #64748b; font-size: 0.8rem; font-style: italic;">No gear detected</span>'
+                  }
+                </div>
               </div>
-            `).join('') : ''}
+            `).join('') : '<p>No analysis data available</p>'}
         </div>
       </div>
     `;
@@ -1055,8 +1174,7 @@ class PPEComplianceSystem {
   }
 }
 
-let ppeSystem;
+// Corrected Initialization for Module Scope
 document.addEventListener('DOMContentLoaded', () => {
-  ppeSystem = new PPEComplianceSystem();
+  window.ppeSystem = new PPEComplianceSystem();
 });
-window.ppeSystem = ppeSystem;
