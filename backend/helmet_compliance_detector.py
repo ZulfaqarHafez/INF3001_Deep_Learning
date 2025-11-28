@@ -19,7 +19,7 @@ import os
 
 def download_model_from_huggingface(
     repo_id: str = "iMaximusiV/yolo-ppe-detector",
-    filename: str = "yolov8s.pt",
+    filename: str = "best_100Epoch.pt",
     cache_dir: str = None
 ) -> str:
     """Download YOLO model from Hugging Face Hub."""
@@ -46,7 +46,7 @@ class HelmetComplianceDetector:
         self, 
         ppe_model_path: str = None,
         huggingface_repo: str = None,
-        huggingface_filename: str = "yolov8s.pt",
+        huggingface_filename: str = "best_100Epoch.pt",
         confidence_threshold: float = 0.5,
         use_huggingface: bool = False
     ):
