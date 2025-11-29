@@ -7,7 +7,7 @@
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 - [Project Overview](#project-overview)
 - [Key Features](#key-features)
 - [System Demo](#system-demo)
@@ -24,19 +24,19 @@ This project delivers a **production-ready** deep learning system for automated 
 
 ### What Makes This Different?
 
-🎯 **Pose-Aware Validation** - Doesn't just detect PPE; validates it's worn at anatomically correct locations using MediaPipe pose estimation
+**Pose-Aware Validation** - Doesn't just detect PPE; validates it's worn at anatomically correct locations using MediaPipe pose estimation
 
-🔄 **Dynamic Requirements** - Adapt compliance rules on-the-fly via sidebar toggles without retraining the model
+**Dynamic Requirements** - Adapt compliance rules on-the-fly via sidebar toggles without retraining the model
 
-📊 **Complete Training Journey** - Documented iterative development from 100k imbalanced images to 6k perfectly balanced dataset
+**Complete Training Journey** - Documented iterative development from 100k imbalanced images to 6k perfectly balanced dataset
 
-🌐 **Production Deployment** - Full-stack web application with FastAPI backend, vanilla JS frontend, and Supabase cloud storage
+**Production Deployment** - Full-stack web application with FastAPI backend, vanilla JS frontend, and Supabase cloud storage
 
 ---
 
 ## Key Features
 
-### ✨ Core Capabilities
+### Core Capabilities
 
 | Feature | Description |
 |---------|-------------|
@@ -48,7 +48,7 @@ This project delivers a **production-ready** deep learning system for automated 
 | **Cloud History** | Persistent detection logging with Supabase integration |
 | **Snapshot Export** | Save annotated frames with timestamps |
 
-### 🎨 Web Application Views
+### Web Application Views
 
 The system features three main interfaces:
 
@@ -241,7 +241,7 @@ curl -X POST http://localhost:8080/process-image \
 
 ## Documentation
 
-### 🎓 Phase 1 Documentation
+### Phase 1 Documentation
 
 Phase 1 focused on binary classification (helmet/no helmet) using ResNet-18:
 
@@ -298,10 +298,10 @@ Phase 1 focused on binary classification (helmet/no helmet) using ResNet-18:
 *Final production model training curves showing excellent convergence and stability.*
 
 **Training Lessons Learned:**
-1. ✅ Quality > Quantity: 6k curated beats 100k imbalanced
-2. ✅ Class balancing significantly improves real-world performance
-3. ✅ Missing annotations hurt recall more than small datasets
-4. ✅ High precision preferred for safety applications
+1. Quality > Quantity: 6k curated beats 100k imbalanced
+2. Class balancing significantly improves real-world performance
+3. Missing annotations hurt recall more than small datasets
+4. High precision preferred for safety applications
 
 **Complete training details:** [docs/MODEL_TRAINING.md](docs/MODEL_TRAINING.md)
 
