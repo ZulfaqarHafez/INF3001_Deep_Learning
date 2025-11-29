@@ -142,11 +142,55 @@ Regularization through dropout significantly improved generalization. Momentum o
 
 ## Future Work (Phase 2)
 
-- Extend to multi-label classification and object detection  
-- Integrate model comparison dashboard within the FastAPI web app  
-- Evaluate transformer-based and lightweight CNN architectures for edge deployment  
-- Expand dataset diversity for improved generalization across PPE categories  
+Iteration 1: Initial Large-Scale Training
+Dataset: Based on a large 42k photo Roboflow dataset, augmented (rotation, grayscale) and multiplied by 3x for a total of over 100k images.
 
+Data Imbalance: Evident from 1st_dataset.png where Hardhat instances (approx. 87k) significantly overwhelm other classes.
+
+Training Time: Over 7 hours and 52 minutes.
+
+Results (1st_result.png): Moderate performance, likely due to high class imbalance.
+
+Loss: All training and validation losses show a good, clear downward trend.
+
+Key Metrics: Validation mAP50 reaches approximately 0.78, and mAP50-95 reaches around 0.53.
+
+----------------------------------------------------------------------------------------------
+Iteration 2: Focus with Reduced Dataset
+Dataset Adjustment: Drastically reduced to 2,000 hand-picked images with the same 3x augmentation for a total of over 6,000 images.
+
+Class Focus: Concentrated on 6 main classes (e.g., Gloves, Helmet, Vest, etc.) for a more focused task.
+
+Dataset Statistics (2nd_dataset.png): Shows some remaining imbalance, with Helmet (~1,641) much lower than No-Helmet (~2,222).
+
+Results (2nd_result.png): Performance slightly better due to reduced class complexity.
+
+Key Metrics: mAP50 is high, reaching around 0.71. mAP50-95 improves to about 0.41.
+
+----------------------------------------------------------------------------------------------
+Iteration 3: Bounding Box Refinement
+
+Dataset Refinement: Focused on identifying and adding more missing bounding boxes (e.g., adding boxes for personnel wearing helmets who were previously un-annotated).
+
+Impact on Instances (3rd_dataset.png): The number of Helmet instances jumped significantly by 
+~1,428 (from 1,641 to 3,069).
+
+Results (3rd_result.png): Model confidence and prediction capability increased.
+
+Validation Loss: The curves for validation loss show more instability/spikiness, suggesting the richer annotations are challenging the model more.
+
+Key Metrics: mAP50-95 shows a considerable increase, stabilizing around 0.35-0.37.
+
+----------------------------------------------------------------------------------------------
+Iteration 4: Instance Balancing and Validation Cleaning
+
+Dataset Focus: Primary focus on balancing class instances and a full cleaning of the validation set.
+
+Dataset Statistics (4th_dataset.png): Shows a much more balanced distribution (e.g., Gloves  ~2,181 vs. Helmet ~2,167).
+
+Results (4th_result.png): Further improved prediction capability, especially when tested live.
+
+Key Metrics: The mAP50-95 metric shows continued improvement in stability and real-world performance, stabilizing near 0.32-0.34.
 ---
 
 ## Dataset References
