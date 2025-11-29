@@ -65,8 +65,8 @@ print("="*70)
 # Configuration - Choose your model source
 USE_HUGGINGFACE = os.getenv("USE_HUGGINGFACE", "true").lower() == "true"
 HUGGINGFACE_REPO = os.getenv("HUGGINGFACE_REPO", "iMaximusiV/yolo-ppe-detector")
-HUGGINGFACE_FILENAME = os.getenv("HUGGINGFACE_FILENAME", "best_100Epoch.pt")
-LOCAL_MODEL_PATH = os.getenv("LOCAL_MODEL_PATH", "../ppe-4080-v12/weights/best_100Epoch.pt")
+HUGGINGFACE_FILENAME = os.getenv("HUGGINGFACE_FILENAME", "best_deep.pt")
+LOCAL_MODEL_PATH = os.getenv("LOCAL_MODEL_PATH", "../ppe-4080-v12/weights/best_deep.pt")
 
 try:
     if USE_HUGGINGFACE:

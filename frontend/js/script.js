@@ -559,98 +559,105 @@ class PPEComplianceSystem {
     // Reuse the new generalized function
     const annotatedImageSrc = await this.generateAnnotatedImage(this.previewImage.src, person_analyses);
     
+    // Use a grid layout to fit everything in one view without main scrolling
     this.uploadResults.innerHTML = `
-      <!-- Detection Visualization -->
-      <div class="detection-visualization">
-        <div class="visualization-header">
-          <h4>Detection Results</h4>
-          <button class="btn btn-sm btn-secondary" onclick="this.closest('.detection-visualization').querySelector('img').requestFullscreen()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
-            </svg>
-            Fullscreen
-          </button>
-        </div>
-        <div class="visualization-image">
-          <img src="${annotatedImageSrc}" alt="Detection Result" />
-        </div>
-        <div class="visualization-legend">
-          <div class="legend-item"><div class="legend-color" style="background: #10b981;"></div><span>Compliant</span></div>
-          <div class="legend-item"><div class="legend-color" style="background: #ef4444;"></div><span>Non-Compliant</span></div>
-          <div class="legend-item"><div class="legend-color" style="background: #fbbf24;"></div><span>Helmet</span></div>
-          <div class="legend-item"><div class="legend-color" style="background: #f97316;"></div><span>Vest</span></div>
-          <div class="legend-item"><div class="legend-color" style="background: #a855f7;"></div><span>Gloves</span></div>
-        </div>
-      </div>
-      
-      <!-- Compliance Summary -->
-      <div class="compliance-card ${isCompliant ? 'compliant' : 'non-compliant'}">
-        <div class="compliance-header">
-          <div class="compliance-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
-              ${isCompliant 
-                ? '<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>'
-                : '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>'}
-            </svg>
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; height: 100%; min-height: 400px;">
+        
+        <!-- Left Column: Image -->
+        <div class="detection-visualization" style="margin: 0; display: flex; flex-direction: column; height: 100%;">
+          <div class="visualization-header">
+            <h4>Detection Results</h4>
+            <button class="btn btn-sm btn-secondary" onclick="this.closest('.detection-visualization').querySelector('img').requestFullscreen()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+              </svg>
+              Fullscreen
+            </button>
           </div>
-          <div>
-            <div class="compliance-title">${isCompliant ? 'COMPLIANT' : 'NON-COMPLIANT'}</div>
-            <div style="color: var(--text-secondary); font-size: 0.875rem;">
-              ${isCompliant ? 'All workers wearing helmets' : 'Safety violation detected'}
-            </div>
+          <div class="visualization-image" style="flex: 1; background: var(--bg-darker); display: flex; align-items: center; justify-content: center; overflow: hidden;">
+            <img src="${annotatedImageSrc}" alt="Detection Result" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+          </div>
+          <div class="visualization-legend">
+            <div class="legend-item"><div class="legend-color" style="background: #10b981;"></div><span>Compliant</span></div>
+            <div class="legend-item"><div class="legend-color" style="background: #ef4444;"></div><span>Non-Compliant</span></div>
+            <div class="legend-item"><div class="legend-color" style="background: #fbbf24;"></div><span>Helmet</span></div>
+            <div class="legend-item"><div class="legend-color" style="background: #f97316;"></div><span>Vest</span></div>
+            <div class="legend-item"><div class="legend-color" style="background: #a855f7;"></div><span>Gloves</span></div>
           </div>
         </div>
         
-        <div class="compliance-details">
-          <div class="detail-item">
-            <div class="detail-label">Total People</div>
-            <div class="detail-value">${total_people}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Compliance Rate</div>
-            <div class="detail-value">${(compliance_rate * 100).toFixed(1)}%</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Person List with New Gear Badges -->
-      ${person_analyses && person_analyses.length > 0 ? `
-        <div class="person-list">
-          <h4 style="margin-bottom: var(--spacing-md); color: var(--text-primary);">Individual Analysis</h4>
-          ${person_analyses.map((person, i) => `
-            <div class="person-card ${person.overall_compliant ? 'compliant' : 'non-compliant'}">
-              <div class="person-header">
-                <span class="person-id">Person ${i + 1}</span>
-                <span class="person-status">${person.overall_compliant ? 'COMPLIANT' : 'NON-COMPLIANT'}</span>
+        <!-- Right Column: Details (Scrollable internally if needed) -->
+        <div style="display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px; max-height: 600px;">
+          
+          <!-- Summary Card -->
+          <div class="compliance-card ${isCompliant ? 'compliant' : 'non-compliant'}" style="margin: 0; padding: 15px;">
+            <div class="compliance-header" style="margin-bottom: 10px;">
+              <div class="compliance-icon" style="width: 40px; height: 40px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
+                  ${isCompliant 
+                    ? '<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>'
+                    : '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>'}
+                </svg>
               </div>
-              <div class="person-details">
-                <div class="person-detail-row">
-                  <span class="detail-key">Status:</span>
-                  <span class="detail-val">${person.status || 'Unknown'}</span>
-                </div>
-                
-                <!-- NEW SECTION: Detected Gear List -->
-                <div class="person-detail-row" style="flex-direction: column; align-items: flex-start; gap: 5px;">
-                  <span class="detail-key">Detected Gear:</span>
-                  <div style="display: flex; flex-wrap: wrap; gap: 5px;">
-                    ${person.detected_gear && person.detected_gear.length > 0 
-                      ? person.detected_gear.map(gear => 
-                          `<span style="background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; border: 1px solid #e2e8f0;">${gear}</span>`
-                        ).join('') 
-                      : '<span style="color: #94a3b8; font-style: italic; font-size: 0.85rem;">None detected</span>'
-                    }
-                  </div>
-                </div>
-
-                <div class="person-detail-row">
-                  <span class="detail-key">Reason:</span>
-                  <span class="detail-val">${person.reason || 'N/A'}</span>
+              <div>
+                <div class="compliance-title" style="font-size: 1.2rem;">${isCompliant ? 'COMPLIANT' : 'NON-COMPLIANT'}</div>
+                <div style="color: var(--text-secondary); font-size: 0.75rem;">
+                  ${isCompliant ? 'All workers wearing required gear' : 'Violation detected'}
                 </div>
               </div>
             </div>
-          `).join('')}
+            
+            <div class="compliance-details" style="gap: 10px;">
+              <div class="detail-item" style="padding: 8px;">
+                <div class="detail-label">People</div>
+                <div class="detail-value" style="font-size: 1rem;">${total_people}</div>
+              </div>
+              <div class="detail-item" style="padding: 8px;">
+                <div class="detail-label">Rate</div>
+                <div class="detail-value" style="font-size: 1rem;">${(compliance_rate * 100).toFixed(0)}%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Person List -->
+          ${person_analyses && person_analyses.length > 0 ? `
+            <div class="person-list" style="margin: 0; gap: 10px;">
+              <h4 style="margin: 0; color: var(--text-primary); font-size: 0.9rem;">Analysis Details</h4>
+              ${person_analyses.map((person, i) => `
+                <div class="person-card ${person.overall_compliant ? 'compliant' : 'non-compliant'}" style="padding: 12px; margin: 0;">
+                  <div class="person-header" style="margin-bottom: 8px;">
+                    <span class="person-id" style="font-size: 0.9rem;">Person ${i + 1}</span>
+                    <span class="person-status" style="font-size: 0.7rem;">${person.overall_compliant ? 'PASS' : 'FAIL'}</span>
+                  </div>
+                  <div class="person-details" style="padding: 8px; gap: 6px;">
+                    <div class="person-detail-row">
+                      <span class="detail-key">Status:</span>
+                      <span class="detail-val" style="font-size: 0.8rem;">${person.status || 'Unknown'}</span>
+                    </div>
+                    
+                    <div class="person-detail-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+                      <span class="detail-key">Detected Gear:</span>
+                      <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                        ${person.detected_gear && person.detected_gear.length > 0 
+                          ? person.detected_gear.map(gear => 
+                              `<span style="background: rgba(255,255,255,0.05); color: var(--text-secondary); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; border: 1px solid var(--border);">${gear}</span>`
+                            ).join('') 
+                          : '<span style="color: var(--text-muted); font-style: italic; font-size: 0.75rem;">None detected</span>'
+                        }
+                      </div>
+                    </div>
+
+                    <div class="person-detail-row" style="margin-top: 4px;">
+                      <span class="detail-key">Reason:</span>
+                      <span class="detail-val" style="font-size: 0.8rem; color: var(--text-secondary);">${person.reason || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
         </div>
-      ` : ''}
+      </div>
     `;
   }
 
