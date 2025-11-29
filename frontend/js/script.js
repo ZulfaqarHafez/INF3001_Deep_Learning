@@ -19,7 +19,7 @@ class PPEComplianceSystem {
     this.animationFrame = null;
     this.fpsCounter = { frames: 0, lastTime: Date.now(), fps: 0 };
     
-    // Session stats
+    // Global stats (synced with DB)
     this.stats = { totalAnalyzed: 0, compliantCount: 0 };
     
     // History state
@@ -35,7 +35,9 @@ class PPEComplianceSystem {
     this.initDOM();
     this.bindEvents();
     this.checkAPIConnection();
-    this.updateStats();
+    
+    // Load initial stats from storage immediately
+    this.loadHistoryStats();
     
     console.log("PPE System Initialized");
   }
@@ -356,7 +358,9 @@ class PPEComplianceSystem {
         this.setUploadStatus('Analysis complete', 'active');
         this.analyzeBtn.disabled = false;
         this.hideUploadProgress();
-        this.updateStatsFromResult(data);
+        
+        // Refresh global stats from server to include this new analysis
+        this.loadHistoryStats();
         
         if (data.saved_to_history) {
           this.showNotification('Detection saved to history', 'success');
@@ -1004,6 +1008,15 @@ class PPEComplianceSystem {
       if (!response.ok) return;
       const stats = await response.json();
       
+      // Update Sidebar Stats variables
+      // Assuming 'total_people' is what 'Total Analyzed' refers to.
+      this.stats.totalAnalyzed = stats.total_people || 0;
+      this.stats.compliantCount = stats.total_compliant || 0;
+      
+      // Update Sidebar UI
+      this.updateStats();
+
+      // Update History View UI (if active)
       if (this.statsTotalScans) this.statsTotalScans.textContent = stats.total_scans || 0;
       if (this.statsTotalCompliant) this.statsTotalCompliant.textContent = stats.total_compliant || 0;
       if (this.statsTotalViolations) this.statsTotalViolations.textContent = stats.total_non_compliant || 0;
