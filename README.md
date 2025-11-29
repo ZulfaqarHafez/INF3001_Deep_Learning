@@ -241,16 +241,6 @@ curl -X POST http://localhost:8080/process-image \
 
 ## Documentation
 
-### 📚 Complete Documentation Index
-
-| Document | Description | Lines |
-|----------|-------------|-------|
-| **README.md** (this file) | Project overview and quick start | ~600 |
-| [docs/MODEL_TRAINING.md](docs/MODEL_TRAINING.md) | Complete training evolution (5 iterations) | ~400 |
-| [docs/TECHNICAL_IMPLEMENTATION.md](docs/TECHNICAL_IMPLEMENTATION.md) | System architecture and algorithms | ~600 |
-| [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md) | API endpoints and specifications | ~300 |
-| [docs/INSTALLATION.md](docs/INSTALLATION.md) | Detailed setup instructions | ~200 |
-
 ### 🎓 Phase 1 Documentation
 
 Phase 1 focused on binary classification (helmet/no helmet) using ResNet-18:
@@ -357,14 +347,17 @@ POST /process-video
 **Full API documentation:** [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)
 ---
 
-## Team
+## Team Members
 
-| [<img src="https://media.licdn.com/dms/image/v2/D5603AQHvZF5vT4le2Q/profile-displayphoto-shrink_200_200/B56ZSwiPpjHwAg-/0/1738128555028?e=1762992000&v=beta&t=MhynUdyUGLsso2KsU5oDiJZyjqK3pBJf3_0rB-sXMo0(https://www.linkedin.com/in/zulfaqar-hafez/) <br> [**Muhammad Zulfaqar Bin Abdul Hafez**](https://www.linkedin.com/in/zulfaqar-hafez/) | [<img src="https://media.licdn.com/dms/image/v2/C5603AQFTAY2c94ToyQ/profile-displayphoto-shrink_200_200/profile-displayphoto-shrink_200_200/0/1639201718574?e=1762992000&v=beta&t=NHE1nPKIVO0rhfRuZVZqxbkfqmaOR7SDo94q8W6f2-g" width="100" height="100" style="border-radius:50%;">](https://www.linkedin.com/in/danielchuasy/) <br> [**Chua Shan Yang Daniel**](https://www.linkedin.com/in/danielchuasy/) | [<img src="https://media.licdn.com/dms/image/v2/D5603AQEX4iR_iPJD_Q/profile-displayphoto-shrink_200_200/B56ZcNzUurHgAc-/0/1748283248210?e=1762992000&v=beta&t=QyPQf1HvWOAipvzJ3_byai42Atd9RVoomZqmWg3YHNE" width="100" height="100" style="border-radius:50%;">](https://www.linkedin.com/in/shawn-lim-1b8186a2/) <br> [**Lim Si Wei Shawn**](https://www.linkedin.com/in/shawn-lim-1b8186a2/) | [<img src="https://media.licdn.com/dms/image/v2/D5603AQFYkEU99qJXhA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1711957465746?e=1762992000&v=beta&t=9LKYR7baH0xYPlM5gyADfCQhwMSBcPEUJWV_NWqNnHU" width="100" height="100" style="border-radius:50%;">](https://www.linkedin.com/in/teo-royston-32653318b/) <br> [**Teo Royston**](https://www.linkedin.com/in/teo-royston-32653318b/) | [<img src="https://media.licdn.com/dms/image/v2/D5603AQGi5D3JSN6pIQ/profile-displayphoto-shrink_200_200/profile-displayphoto-shrink_200_200/0/1729214164989?e=1762992000&v=beta&t=AV-H_bH3HpJq5TiaRNFyMs1xSf8Sag-k0GqGHOHToDA" width="100" height="100" style="border-radius:50%;">](https://www.linkedin.com/in/tan-chun-yuan/) <br> [**Tan Chun Yuan (Max)**](https://www.linkedin.com/in/tan-chun-yuan/) |
+| [<img src="/images/zul.jpg" width="100" height="100" style="border-radius:50%;">](https://www.linkedin.com/in/zulfaqar-hafez/) <br> [**Zulfaqar Hafez**](https://www.linkedin.com/in/zulfaqar-hafez/) | [<img src="/images/dan.jpg" width="100" height="100" style="border-radius:50%;">](https://www.linkedin.com/in/danielchuasy/) <br> [**Daniel Chua**](https://www.linkedin.com/in/danielchuasy/) | [<img src="/images/shawn.jpg" width="100" height="100" style="border-radius:50%;">](https://www.linkedin.com/in/shawn-lim-1b8186a2/) <br> [**Shawn Lim**](https://www.linkedin.com/in/shawn-lim-1b8186a2/) | [<img src="/images/roy.jpg" width="100" height="100" style="border-radius:50%;">](https://www.linkedin.com/in/teo-royston-32653318b/) <br> [**Royston Teo**](https://www.linkedin.com/in/teo-royston-32653318b/) | [<img src="/images/max.jpg" width="100" height="100" style="border-radius:50%;">](https://www.linkedin.com/in/tan-chun-yuan/) <br> [**Tan Chun Yuan (Max)**](https://www.linkedin.com/in/tan-chun-yuan/) |
 |:--:|:--:|:--:|:--:|:--:|
 
-
-**Team Members:**
-- Zulfaqar Hafez - System Architecture, Model Training, Full-Stack Development
+**Contribution:**
+- Zulfaqar Hafez - System Architecture, Full-Stack Development
+- Max Tan - Model Training
+- Shawn Lim - Model Training
+- Daniel Chua - Model Training
+- Royston Teo - Full-Stack
 
 **Acknowledgments:**
 - Dataset sources: Ultralytics, Snehil Sanyal, Roboflow
