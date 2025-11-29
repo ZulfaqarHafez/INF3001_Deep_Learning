@@ -88,6 +88,11 @@ class PPEComplianceSystem {
     this.increaseThresholdBtn = document.getElementById('increaseThreshold');
     this.decreaseThresholdBtn = document.getElementById('decreaseThreshold');
     
+    // Settings Checkboxes
+    this.checkHelmet = document.getElementById('checkHelmet');
+    this.checkVest = document.getElementById('checkVest');
+    this.checkGloves = document.getElementById('checkGloves');
+    
     // History elements
     this.historyGrid = document.getElementById('historyGrid');
     this.refreshHistoryBtn = document.getElementById('refreshHistory');
@@ -304,6 +309,15 @@ class PPEComplianceSystem {
     this.setUploadStatus('Ready', 'active');
   }
 
+  // Helper to get selected requirements
+  getRequirements() {
+    return {
+      require_helmet: this.checkHelmet.checked,
+      require_vest: this.checkVest.checked,
+      require_gloves: this.checkGloves.checked
+    };
+  }
+
   async analyzeImage() {
     if (!this.currentFile) return;
 
@@ -314,6 +328,12 @@ class PPEComplianceSystem {
     const formData = new FormData();
     formData.append('file', this.currentFile);
     formData.append('save_to_history', this.saveToHistoryCheckbox?.checked ?? true);
+    
+    // Add requirements
+    const reqs = this.getRequirements();
+    formData.append('require_helmet', reqs.require_helmet);
+    formData.append('require_vest', reqs.require_vest);
+    formData.append('require_gloves', reqs.require_gloves);
 
     try {
       const response = await fetch(`${this.API_BASE}/detect-helmet`, {
@@ -730,6 +750,12 @@ class PPEComplianceSystem {
         formData.append('file', blob, 'snapshot.jpg');
         formData.append('threshold', this.threshold.toString());
         formData.append('save_to_history', 'true'); // FORCE SAVE
+        
+        // Add requirements
+        const reqs = this.getRequirements();
+        formData.append('require_helmet', reqs.require_helmet);
+        formData.append('require_vest', reqs.require_vest);
+        formData.append('require_gloves', reqs.require_gloves);
 
         const response = await fetch(`${this.API_BASE}/detect-helmet`, {
           method: 'POST',
@@ -784,6 +810,12 @@ class PPEComplianceSystem {
         formData.append('file', blob, 'frame.jpg');
         formData.append('threshold', this.threshold.toString());
         formData.append('save_to_history', 'false'); // Don't save live frames to history
+        
+        // Add requirements
+        const reqs = this.getRequirements();
+        formData.append('require_helmet', reqs.require_helmet);
+        formData.append('require_vest', reqs.require_vest);
+        formData.append('require_gloves', reqs.require_gloves);
 
         const response = await fetch(`${this.API_BASE}/detect-helmet`, {
           method: 'POST',
@@ -1071,7 +1103,7 @@ class PPEComplianceSystem {
     
     // Render Modal Content
     this.modalBody.innerHTML = `
-      <div class="modal-image">
+      <div class="modal-image" style="max-width: 50%; margin: 0 auto;">
         <img src="${annotatedImage}" alt="Detection" />
       </div>
       <div class="modal-info">

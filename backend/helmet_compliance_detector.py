@@ -191,7 +191,7 @@ class HelmetComplianceDetector:
 
     def is_location_valid(self, item_box: List[int], item_type: str, landmarks: Dict, person_height: float) -> Tuple[bool, str]:
         """
-        Validates if the PPE item is in the correct anatomical location.
+        Validates if the PPE item is in the correct anatomical location using relative body size.
         Uses Distance Check OR Containment Check (more robust).
         """
         item_center = self.get_box_center(item_box)
@@ -237,14 +237,19 @@ class HelmetComplianceDetector:
             
         return True, "Detected"
 
-    def analyze_person_ppe(self, person: Dict, all_ppe_items: List[Dict], landmarks: Dict) -> Dict:
+    def analyze_person_ppe(self, person: Dict, all_ppe_items: List[Dict], landmarks: Dict, requirements: Dict) -> Dict:
         """
-        Analyze all PPE gear associated with this person and verify compliance locations.
+        Analyze all PPE gear associated with this person and verify compliance based on requirements.
         """
         px1, py1, px2, py2 = person['bbox']
         person_height = py2 - py1
         
-        # Track status of required items
+        # Requirements map
+        req_helmet = requirements.get('helmet', True)
+        req_vest = requirements.get('vest', True)
+        req_gloves = requirements.get('gloves', False)
+        
+        # Track status of items
         gear_status = {
             'helmet': {'detected': False, 'valid': False},
             'vest': {'detected': False, 'valid': False},
@@ -267,21 +272,25 @@ class HelmetComplianceDetector:
             if is_near:
                 class_lower = item['class_name'].lower()
                 
+                # Filter out negative classes
+                is_negative_class = 'no' in class_lower
+                
                 # 2. Location Validation
                 is_valid, loc_reason = self.is_location_valid(item['bbox'], class_lower, landmarks, person_height)
                 
-                # Update tracking
-                if 'helmet' in class_lower or 'hardhat' in class_lower:
-                    gear_status['helmet']['detected'] = True
-                    if is_valid: gear_status['helmet']['valid'] = True
-                elif 'vest' in class_lower:
-                    gear_status['vest']['detected'] = True
-                    if is_valid: gear_status['vest']['valid'] = True
-                elif 'glove' in class_lower:
-                    gear_status['gloves']['detected'] = True
-                    if is_valid: gear_status['gloves']['valid'] = True
+                # 3. Update Tracking (ONLY if not a 'no-' class)
+                if not is_negative_class:
+                    if 'helmet' in class_lower or 'hardhat' in class_lower:
+                        gear_status['helmet']['detected'] = True
+                        if is_valid: gear_status['helmet']['valid'] = True
+                    elif 'vest' in class_lower:
+                        gear_status['vest']['detected'] = True
+                        if is_valid: gear_status['vest']['valid'] = True
+                    elif 'glove' in class_lower:
+                        gear_status['gloves']['detected'] = True
+                        if is_valid: gear_status['gloves']['valid'] = True
                 
-                # Prepare Output with DETAILED reason
+                # Prepare Output
                 conf_pct = int(item['confidence'] * 100)
                 tag = " [OK]" if is_valid else f" [BAD: {loc_reason}]"
                 gear_label = f"{item['class_name']} {conf_pct}%{tag}"
@@ -294,38 +303,48 @@ class HelmetComplianceDetector:
                 item_copy['location_reason'] = loc_reason
                 ppe_items_with_status.append(item_copy)
 
-        # 3. Compliance Logic (Helmet Mandatory + Valid Vest if detected)
+        # 4. Compliance Logic - DYNAMIC BASED ON REQUIREMENTS
         reasons = []
         compliant = True
         status_label = "COMPLIANT"
         
-        # Helmet is mandatory
-        if not gear_status['helmet']['detected']:
-            compliant = False
-            reasons.append("Missing Helmet")
-            status_label = "NO HELMET"
-        elif not gear_status['helmet']['valid']:
-            compliant = False
-            reasons.append("Helmet misplaced")
-            status_label = "NOT WORN"
-        else:
-            reasons.append("Helmet OK")
-            
-        # Vest contributes to compliance if detected
-        if gear_status['vest']['detected']:
-            if gear_status['vest']['valid']:
-                reasons.append("Vest OK")
+        # Check Helmet if Required
+        if req_helmet:
+            if not gear_status['helmet']['detected']:
+                compliant = False
+                reasons.append("Missing Helmet")
+                status_label = "NO HELMET"
+            elif not gear_status['helmet']['valid']:
+                compliant = False
+                reasons.append("Helmet misplaced")
+                status_label = "NOT WORN"
             else:
+                reasons.append("Helmet OK")
+        
+        # Check Vest if Required
+        if req_vest:
+            if not gear_status['vest']['detected']:
+                compliant = False
+                reasons.append("Missing Vest")
+                if status_label == "COMPLIANT": status_label = "NO VEST"
+            elif not gear_status['vest']['valid']:
                 compliant = False
                 reasons.append("Vest misplaced")
-                status_label = "VEST OFF"
-                
-        # Gloves check (optional enforcement, but reporting status)
-        if gear_status['gloves']['detected']:
-            if gear_status['gloves']['valid']:
-                reasons.append("Gloves OK")
+                if status_label == "COMPLIANT": status_label = "VEST OFF"
             else:
+                reasons.append("Vest OK")
+                
+        # Check Gloves if Required
+        if req_gloves:
+            if not gear_status['gloves']['detected']:
+                compliant = False
+                reasons.append("Missing Gloves")
+                if status_label == "COMPLIANT": status_label = "NO GLOVES"
+            elif not gear_status['gloves']['valid']:
+                compliant = False
                 reasons.append("Gloves misplaced")
+            else:
+                reasons.append("Gloves OK")
 
         if not compliant and status_label == "COMPLIANT":
             status_label = "NON-COMPLIANT"
@@ -339,12 +358,17 @@ class HelmetComplianceDetector:
             'ppe_items': ppe_items_with_status
         }
     
-    def process_frame(self, frame: np.ndarray, visualize: bool = True) -> Tuple[np.ndarray, Dict]:
+    def process_frame(self, frame: np.ndarray, visualize: bool = True, requirements: Dict = None) -> Tuple[np.ndarray, Dict]:
         output_frame = frame.copy()
         people = self.detect_people(frame)
         all_ppe = self.detect_all_ppe(frame)
         
+        # Default requirements if none provided
+        if requirements is None:
+            requirements = {'helmet': True, 'vest': True, 'gloves': False}
+            
         print(f"\n[Detection] Found {len(people)} people, {len(all_ppe)} PPE items")
+        print(f"[Requirements] {requirements}")
         
         analyses = []
         for person in people:
@@ -362,7 +386,7 @@ class HelmetComplianceDetector:
                 })
                 continue
             
-            result = self.analyze_person_ppe(person, all_ppe, landmarks)
+            result = self.analyze_person_ppe(person, all_ppe, landmarks, requirements)
             result['person_box'] = person['bbox']
             result['head_detected'] = True
             result['head_position'] = landmarks['nose']
@@ -424,7 +448,7 @@ class HelmetComplianceDetector:
                 for pt in pts.values():
                     cv2.circle(output, pt, 4, joint_color, -1)
 
-        # 2. Draw PPE Items
+        # 2. Draw PPE items
         for item in all_ppe:
             x1, y1, x2, y2 = item['bbox']
             conf_str = f"{int(item['confidence']*100)}%"

@@ -5,7 +5,7 @@ With Supabase integration for image storage and history logging
 Author: Zulfaqar
 Project: INF3001 Deep Learning - PPE Detection API v2.0
 
-Updated: Now loads PPE model from Hugging Face automatically
+Updated: Now supports dynamic requirements (Helmet, Vest, Gloves) and passing landmarks
 """
 
 from fastapi import FastAPI, File, UploadFile, Form, Query, HTTPException
@@ -204,11 +204,14 @@ async def health_check():
 async def detect_helmet(
     file: UploadFile = File(...),
     threshold: Optional[int] = Form(None),
-    save_to_history: Optional[bool] = Form(True)
+    save_to_history: Optional[bool] = Form(True),
+    require_helmet: Optional[str] = Form("true"),
+    require_vest: Optional[str] = Form("true"),
+    require_gloves: Optional[str] = Form("false")
 ):
     """
     Detect helmet compliance in uploaded image.
-    Updated to return full PPE audit data AND landmarks.
+    Updated to return full PPE audit data, landmarks, and support dynamic requirements.
     """
     if not detector:
         return JSONResponse(
@@ -228,6 +231,11 @@ async def detect_helmet(
                 content={"error": "Invalid image file. Please upload a valid JPG or PNG."}
             )
         
+        # Parse boolean requirements (Form data comes as strings)
+        req_helmet = str(require_helmet).lower() == 'true'
+        req_vest = str(require_vest).lower() == 'true'
+        req_gloves = str(require_gloves).lower() == 'true'
+        
         # Store original threshold
         original_threshold = detector.HELMET_ON_HEAD_THRESHOLD
         
@@ -240,8 +248,17 @@ async def detect_helmet(
                 )
             detector.HELMET_ON_HEAD_THRESHOLD = int(threshold)
         
-        # Process frame (visualize=False because we draw on frontend)
-        _, results = detector.process_frame(frame, visualize=False)
+        # Process frame
+        # Pass the requirements dictionary to the detector
+        _, results = detector.process_frame(
+            frame, 
+            visualize=False,
+            requirements={
+                'helmet': req_helmet,
+                'vest': req_vest,
+                'gloves': req_gloves
+            }
+        )
         
         # Build response
         response = {
@@ -276,12 +293,12 @@ async def detect_helmet(
             
             if 'distance_to_head' in analysis and analysis['distance_to_head'] is not None:
                 person_data['distance_to_head'] = round(analysis['distance_to_head'], 2)
-                
+            
             if 'helmet' in analysis:
                 person_data['helmet_bbox'] = analysis['helmet']['bbox']
                 person_data['helmet_confidence'] = round(analysis['helmet']['confidence'], 3)
-            
-            # --- CRITICAL UPDATE: PASS LANDMARKS ---
+                
+            # Pass landmarks if available (needed for skeleton drawing)
             if 'landmarks' in analysis:
                 person_data['landmarks'] = analysis['landmarks']
             

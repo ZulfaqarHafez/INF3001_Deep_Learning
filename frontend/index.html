@@ -46,6 +46,26 @@
         </button>
       </nav>
 
+      <!-- NEW: Detection Settings Section -->
+      <div class="settings-section" style="padding: 20px; border-top: 1px solid var(--border); margin-top: auto;">
+        <h4 style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 10px; text-transform: uppercase;">Required Gear</h4>
+        
+        <label class="setting-item" style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px; color: var(--text-secondary); cursor: pointer;">
+          <input type="checkbox" id="checkHelmet" checked>
+          <span>Helmet / Hardhat</span>
+        </label>
+        
+        <label class="setting-item" style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px; color: var(--text-secondary); cursor: pointer;">
+          <input type="checkbox" id="checkVest" checked>
+          <span>Safety Vest</span>
+        </label>
+        
+        <label class="setting-item" style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px; color: var(--text-secondary); cursor: pointer;">
+          <input type="checkbox" id="checkGloves">
+          <span>Gloves</span>
+        </label>
+      </div>
+
       <div class="sidebar-footer">
         <div class="stats-card">
           <div class="stat-item">
@@ -383,8 +403,8 @@
           <span class="page-info" id="pageInfo">Page 1</span>
           <button class="btn btn-sm" id="nextPage">
             Next
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            <svg width="16" height="16" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\">
+              <path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 5l7 7-7 7\"/>
             </svg>
           </button>
         </div>
