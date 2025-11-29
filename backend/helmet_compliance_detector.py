@@ -1,7 +1,7 @@
 """
 Simplified Helmet Compliance Detection with Pose Estimation
 Focus: Dynamic Compliance (Gear must be worn at appropriate locations)
-- Helmet -> Head (Nose)
+- Helmet -> Head (Nose + Ears)
 - Vest -> Torso (Midpoint of Shoulders/Hips)
 - Gloves -> Hands (Wrists)
 
@@ -19,7 +19,7 @@ import os
 
 def download_model_from_huggingface(
     repo_id: str = "iMaximusiV/yolo-ppe-detector",
-    filename: str = "yolov8s.pt",
+    filename: str = "best_100Epoch.pt",
     cache_dir: str = None
 ) -> str:
     """Download YOLO model from Hugging Face Hub."""
@@ -46,7 +46,7 @@ class HelmetComplianceDetector:
         self, 
         ppe_model_path: str = None,
         huggingface_repo: str = None,
-        huggingface_filename: str = "yolov8s.pt",
+        huggingface_filename: str = "best_100Epoch.pt",
         confidence_threshold: float = 0.5,
         use_huggingface: bool = False
     ):
@@ -127,7 +127,7 @@ class HelmetComplianceDetector:
     
     def get_body_landmarks(self, frame: np.ndarray, person_box: List[int]) -> Optional[Dict]:
         """
-        Extracts key body landmarks (Nose, Torso Center, Wrists, etc.) for pose estimation.
+        Extracts key body landmarks (Nose, Ears, Torso Center, Wrists, etc.) for pose estimation.
         """
         x1, y1, x2, y2 = person_box
         h, w = frame.shape[:2]
@@ -155,6 +155,9 @@ class HelmetComplianceDetector:
         
         # Extract specific points
         nose = to_global(landmarks[0])
+        l_ear = to_global(landmarks[7])
+        r_ear = to_global(landmarks[8])
+        
         l_shoulder = to_global(landmarks[11])
         r_shoulder = to_global(landmarks[12])
         l_elbow = to_global(landmarks[13])
@@ -170,37 +173,67 @@ class HelmetComplianceDetector:
         
         return {
             'nose': nose,
+            'ears': [l_ear, r_ear], # Added Ears
             'torso_center': (torso_x, torso_y),
-            'shoulders': (l_shoulder, r_shoulder),
-            'elbows': (l_elbow, r_elbow),
-            'wrists': (l_wrist, r_wrist),
-            'hips': (l_hip, r_hip)
+            'shoulders': [l_shoulder, r_shoulder],
+            'elbows': [l_elbow, r_elbow],
+            'wrists': [l_wrist, r_wrist],
+            'hips': [l_hip, r_hip]
         }
+
+    def is_point_in_box(self, point: Tuple[int, int], box: List[int]) -> bool:
+        """Check if a point (x,y) is inside a bounding box [x1, y1, x2, y2]."""
+        x, y = point
+        x1, y1, x2, y2 = box
+        # Add a small buffer to the box for leniency
+        buffer = 20
+        return (x1 - buffer) <= x <= (x2 + buffer) and (y1 - buffer) <= y <= (y2 + buffer)
 
     def is_location_valid(self, item_box: List[int], item_type: str, landmarks: Dict, person_height: float) -> Tuple[bool, str]:
         """
-        Validates if the PPE item is in the correct anatomical location using relative body size.
+        Validates if the PPE item is in the correct anatomical location.
+        Uses Distance Check OR Containment Check (more robust).
         """
         item_center = self.get_box_center(item_box)
         
-        # Helmet -> Nose check
+        # Helper to simplify logic
+        def check_validity(target_points, threshold_ratio, label_name):
+            # 1. Distance Check (Center to Point)
+            threshold = person_height * threshold_ratio
+            
+            # Handle single point or list of points
+            points = target_points if isinstance(target_points, list) else [target_points]
+            
+            min_dist = float('inf')
+            for pt in points:
+                d = self.euclidean_distance(item_center, pt)
+                if d < min_dist: min_dist = d
+            
+            if min_dist < threshold:
+                return True, f"On {label_name} (Dist {int(min_dist)}<{int(threshold)})"
+            
+            # 2. Containment Check (Is the body part INSIDE the gear box?)
+            for pt in points:
+                if self.is_point_in_box(pt, item_box):
+                    return True, f"On {label_name} (Overlaps)"
+            
+            return False, f"Off {label_name} (Dist {int(min_dist)}>{int(threshold)})"
+
+        # Helmet -> Head check (Nose OR Ears)
         if 'helmet' in item_type or 'hardhat' in item_type:
-            threshold = person_height * 0.15 # ~15% of height
-            dist = self.euclidean_distance(item_center, landmarks['nose'])
-            return (True, "On Head") if dist < threshold else (False, "Off Head")
+            # Check against Nose AND Ears for maximum forgiveness
+            targets = [landmarks['nose']] + landmarks['ears']
+            return check_validity(targets, 0.35, "Head") # 35% threshold
             
-        # Vest -> Torso Center check
+        # Vest -> Torso/Shoulders check
         elif 'vest' in item_type:
-            threshold = person_height * 0.30 # Torso is larger
-            dist = self.euclidean_distance(item_center, landmarks['torso_center'])
-            return (True, "On Body") if dist < threshold else (False, "Off Body")
+            # Check Torso Center OR Shoulders
+            targets = [landmarks['torso_center']] + landmarks['shoulders']
+            return check_validity(targets, 0.45, "Body") # Relaxed to 45%
             
-        # Glove -> Wrists check (nearest)
+        # Glove -> Wrists check
         elif 'glove' in item_type:
-            threshold = person_height * 0.20
-            dists = [self.euclidean_distance(item_center, w) for w in landmarks['wrists']]
-            min_dist = min(dists)
-            return (True, "On Hand") if min_dist < threshold else (False, "Off Hand")
+            return check_validity(landmarks['wrists'], 0.30, "Hand")
             
         return True, "Detected"
 
@@ -248,10 +281,10 @@ class HelmetComplianceDetector:
                     gear_status['gloves']['detected'] = True
                     if is_valid: gear_status['gloves']['valid'] = True
                 
-                # Prepare Output
+                # Prepare Output with DETAILED reason
                 conf_pct = int(item['confidence'] * 100)
-                status_tag = " [OK]" if is_valid else " [BAD POS]"
-                gear_label = f"{item['class_name']} {conf_pct}%{status_tag}"
+                tag = " [OK]" if is_valid else f" [BAD: {loc_reason}]"
+                gear_label = f"{item['class_name']} {conf_pct}%{tag}"
                 
                 if gear_label not in detected_gear_list:
                     detected_gear_list.append(gear_label)
@@ -273,7 +306,7 @@ class HelmetComplianceDetector:
             status_label = "NO HELMET"
         elif not gear_status['helmet']['valid']:
             compliant = False
-            reasons.append("Helmet not on head")
+            reasons.append("Helmet misplaced")
             status_label = "NOT WORN"
         else:
             reasons.append("Helmet OK")
@@ -284,7 +317,7 @@ class HelmetComplianceDetector:
                 reasons.append("Vest OK")
             else:
                 compliant = False
-                reasons.append("Vest not on body")
+                reasons.append("Vest misplaced")
                 status_label = "VEST OFF"
                 
         # Gloves check (optional enforcement, but reporting status)
@@ -292,9 +325,7 @@ class HelmetComplianceDetector:
             if gear_status['gloves']['valid']:
                 reasons.append("Gloves OK")
             else:
-                # Uncomment next line to make gloves mandatory for compliance if detected
-                # compliant = False 
-                reasons.append("Gloves not on hands")
+                reasons.append("Gloves misplaced")
 
         if not compliant and status_label == "COMPLIANT":
             status_label = "NON-COMPLIANT"
@@ -369,6 +400,7 @@ class HelmetComplianceDetector:
                 # Points dict
                 pts = {
                     'N': lms['nose'],
+                    'LEar': lms['ears'][0], 'REar': lms['ears'][1], # Ears
                     'LS': lms['shoulders'][0], 'RS': lms['shoulders'][1],
                     'LE': lms['elbows'][0],    'RE': lms['elbows'][1],
                     'LW': lms['wrists'][0],    'RW': lms['wrists'][1],
@@ -381,20 +413,18 @@ class HelmetComplianceDetector:
                     ('LS', 'RS'), ('LS', 'LE'), ('LE', 'LW'), # Left Arm
                     ('RS', 'RE'), ('RE', 'RW'),               # Right Arm
                     ('LS', 'LH'), ('RS', 'RH'),               # Torso Sides
-                    ('LH', 'RH'), ('LS', 'TC'), ('RS', 'TC')  # Hips & Neck
+                    ('LH', 'RH'), ('LS', 'TC'), ('RS', 'TC'), # Hips & Neck
+                    ('N', 'TC')                               # Nose to Torso
                 ]
                 
                 for p1, p2 in connections:
                     cv2.line(output, pts[p1], pts[p2], bone_color, 2)
                 
-                # Draw Line from Nose to Torso Center (Neck-ish)
-                cv2.line(output, pts['N'], pts['TC'], bone_color, 2)
-                
                 # Draw Joints
                 for pt in pts.values():
                     cv2.circle(output, pt, 4, joint_color, -1)
 
-        # 2. Draw PPE items
+        # 2. Draw PPE Items
         for item in all_ppe:
             x1, y1, x2, y2 = item['bbox']
             conf_str = f"{int(item['confidence']*100)}%"
